@@ -1,0 +1,1974 @@
+# simulation of linear, penalised regression and machine learning methods 
+# simulation performed with different no of observations
+# number of observations
+library(MASS)
+# a function that inputs the no of data to be generated
+# and output random data for the simulation of size n 
+sim_create <- function(n) {
+  set.seed(100)
+  simulation <- data.frame(matrix(NA, nrow = n , ncol = 17))
+  # create 1 factor variable with 3 possible levels 
+  simulation[,1] <- sample(c("1", "2", "3"), n, replace = TRUE)
+  # create 4 factor variables with 2 possible levels 
+  for (i in (2:5)) {
+    simulation[,i] <- sample(c("1", "2"), n, replace = TRUE)
+  }
+  # create the continuous explanatory variables
+  # use the command mvrnorm to draw a matrix of correlated variables
+  # specify the correlation matrix
+  rho <- cbind(c(1, .7, .8), c(.8, 1, .9), c(.9, .9, 1))
+  add_variables <- mvrnorm(500, mu=rep(100, 3), Sigma=rho)
+  simulation[6] <- as.data.frame(add_variables[,1])
+  simulation[7] <- as.data.frame(add_variables[,2])
+  simulation[8] <- as.data.frame(add_variables[,3])
+  for (i in (9:11)) {
+    simulation[, i] <- runif(n, min = 0, max = 50)
+  }
+  for (i in (12:15)) {
+    simulation[, i] <- rnorm(n, mean = 200, sd = 10)
+  }
+  # error terms of constant variance on the column no 26
+  simulation[, 16] <- rnorm(n, mean = 0, sd = 2)
+  # create the beta coefficients
+  beta <- c(5, -2, 3, 4, 5, 0, 7, 0, 0, -2, -1, 0, -2.5, 2.2, 1.5, -1, 0, 
+            #beta0 - beta15
+            -0.5, -0.3, 0.7, 0.9, 2.7, 0, -3.5, -2.7, 1.7, 1.8, 0, 0, 2.5, 0.85, 
+            #interactions coefficients between X1 = 2 and other variables
+            -1.9, -2.6, 0, 0, 2, 0, 0, 0, 7, -8, -2, 4, 0, 0, 
+            #interactions coefficients between X1 = 3 and other variables
+            2.7, 2.9, 0, 1.6, -2.5, -1.4, -3.6, 0, 0, 2.1, 3, 2.4, 1.8, 0, 0, 
+            #interactions coefficients between X2 = 2 and other variables
+            1.3, 3.1, 0, -0.3, 0.9, 0, 3.5, -2.5, 0, 0, -1, -2.1, 
+            #interactions coefficients between X3 = 2 and other variables
+            -3.1, 0, 3.1, 0, 1.5, 1.3, -1.9, 0, 0, 
+            #interactions coefficients between X4 == 2 and other variables
+            0, -0.4, -0.7, 0.5, 0.5, 0, 0.8, -0.3, 0, 0, 
+            #interactions coefficients between X5 == 2 and other variables
+            -1.3, -2.7, -2, -1, 0, 3, 0, 0, 5.1, 
+            #interactions coefficients between X6 and other variables
+            -5, -8.8, -1, -2, -3, -2.5, -1, 0, 
+            #interactions coefficients between X7 and other variables
+            1.4, 1.5, 1.8, -0.5, 0, 1.1, -0.3, 
+            #interactions coefficients between X8 and other variables
+            0.4, 0, 0, 0, -3.2, 0,
+            #interactions coefficients between X9 and other variables
+            0.3, 2.4, 0.6, -2.1, -2.5, 
+            #interactions coefficients between X10 and other variables
+            -3, 0.10, 0.3, 0, 
+            #interactions coefficients between X11 and other variables
+            -1.2, 0, 2, 
+            #interactions coefficients between X12 and other variables
+            -3.3, -5, 
+            #interactions coefficients between X13 and other variables
+            0) 
+  #interactions coefficients between X14 and X15
+  # response variable at column 17 using our proposed data
+  simulation[, 17] <- beta[1] + (beta[2] * (simulation[, 1] == "2")) + 
+    (beta[3] * (simulation[, 1] == "3")) + 
+    (beta[4] * (simulation[, 2] == "2")) + 
+    (beta[5] * (simulation[, 3] == "2")) + 
+    (beta[6] * (simulation[, 4] == "2")) + 
+    (beta[7] * (simulation[, 5] == "2")) + (beta[8] * simulation[, 6]) +
+    (beta[9] * simulation[, 7]) + (beta[10] * simulation[, 8]) + 
+    (beta[11] * simulation[, 9]) + (beta[12] * simulation[, 10]) + 
+    (beta[13] * simulation[, 11]) + (beta[14] * simulation[, 12]) + 
+    (beta[15] * simulation[, 13]) + (beta[16] * simulation[, 14]) + 
+    (beta[17] * simulation[, 15]) + simulation[, 16]
+  # interactions for as.factor(X1) = 2 with other factor variables
+  for (i in 1:4) {
+    simulation[, 17] <- (simulation[, 17]) + 
+      (beta[17 + i] * (simulation[, 1] == "2") * (simulation[, i + 1] == "2"))
+  }
+  # interactions for as.factor(X1) = 2 with other continuous variables
+  for (i in 1:10) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[21 + i] * (simulation[, 1] == "2") * (simulation[, 5 + i]))
+  }
+  # interactions for as.factor(X1) = 3 with other factor variables
+  for (i in 1:4) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[31 + i] * (simulation[, 1] == "3") * (simulation[, i + 1] == "2"))
+  }
+  # interactions for as.factor(X1) = 3 with other continuous variables
+  for (i in 1:10) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[35 + i] * (simulation[, 1] == "3") * (simulation[, 5 + i]))
+  }
+  # interactions for as.factor(X2) = 2 with other factor variables
+  for (i in 1:3) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[45 + i] * (simulation[, 2] == "2") * (simulation[, i + 2] == "2"))
+  }
+  # interactions for as.factor(X2) = 2 with other continuous variables
+  for (i in 1:10) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[48 + i] * (simulation[, 2] == "2") * (simulation[, 5 + i]))
+  }
+  # interactions for as.factor(X3) = 2 with other factor variables
+  for (i in 1:2) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[58 + i] * (simulation[, 3] == "2") * (simulation[, i + 3] == "2"))
+  }
+  # interactions for as.factor(X3) = 2 with other continuous variables
+  for (i in 1:10) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[60 + i] * (simulation[, 3] == "2") * (simulation[, 5 + i]))
+  }
+  # interactions for as.factor(X4) = 2 with other factor variables
+  simulation[, 17] <- simulation[, 17] + 
+    (beta[71] * (simulation[, 4] == "2") * (simulation[, 5] == "2"))
+  # interactions for as.factor(X4) = 2 with other continuous variables
+  for (i in 1:10) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[71 + i] * (simulation[, 4] == "2") * (simulation[, 5 + i]))
+  }
+  # interactions for as.factor(X5) = 2 with other continuous variables
+  for (i in 1:10) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[81 + i] * (simulation[, 5] == "2") * (simulation[, 5 + i]))
+  }
+  # interactions for X6 with other continuous variables
+  for (i in 1:9) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[91 + i] * simulation[, 6] * (simulation[, 6 + i]))
+  }
+  # interactions for X7 with other continuous variables
+  for (i in 1:8) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[100 + i] * simulation[, 7] * (simulation[, 7 + i]))
+  }
+  # interactions for X8 with other continuous variables
+  for (i in 1:7) {
+    simulation[, 17] <- simulation[, 17] +
+      (beta[108 + i] * simulation[, 8] * (simulation[, 8 + i]))
+  }
+  # interactions for X9 with other continuous variables
+  for (i in 1:6) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[115 + i] * simulation[, 9] * (simulation[, 9 + i]))
+  }
+  # interactions for X10 with other continuous variables
+  for (i in 1:5) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[121 + i] * simulation[, 10] * (simulation[, 10 + i]))
+  }
+  # interactions for X11 with other continuous variables
+  for (i in 1:4) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[126 + i] * simulation[, 11] * (simulation[, 11 + i]))
+  }
+  # interactions for X12 with other continuous variables
+  for (i in 1:3) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[130 + i] * simulation[, 12] * (simulation[, 12 + i]))
+  }
+  # interactions for X13 with other continuous variables
+  for (i in 1:2) {
+    simulation[, 17] <- simulation[, 17] + 
+      (beta[133 + i] * simulation[, 13] * (simulation[, 13 + i]))
+  }
+  # interactions for X14 with X15
+  simulation[, 17] <- simulation[, 17] + 
+    (beta[136] * simulation[, 14] * (simulation[, 15]))
+  return(simulation)
+}
+set.seed(100)
+# when n = 500
+simulation_data_1 <- sim_create(500)
+# split the data into training and test 
+# create the partition
+smp_size_sim_1 <- floor(0.8 * nrow(simulation_data_1))
+train_ind_sim_1 <- sample(seq_len(nrow(simulation_data_1)), 
+                          size = smp_size_sim_1)
+train_sim_1 <- simulation_data_1[train_ind_sim_1, ]
+test_sim_1 <- simulation_data_1[-train_ind_sim_1, ]
+# fit a linear model
+simulation_lm_small_1 <- lm(X17 ~ (as.factor(X1) + as.factor(X2) + 
+                                     as.factor(X3) + as.factor(X4) + 
+                                     as.factor(X5) + X6 + X7 + X8 + X9 + X10 + 
+                                     X11 + X12 + X13 + X14 + X15) ^ 2, 
+                            data = train_sim_1)
+require(car)
+Anova_simulation_lm_small_1 <- Anova(simulation_lm_small_1)
+View(Anova_simulation_lm_small_1)
+AIC(simulation_lm_small_1)
+# AIC = 1851.1
+BIC(simulation_lm_small_1)
+# BIC = 2397.931
+step(simulation_lm_small_1, direction="backward")
+# remove variables based on stepwise results 
+simulation_lm_small_2 <- update(simulation_lm_small_1, .~. - as.factor(X1):X4 - 
+                                  as.factor(X1):X7 - 
+                                  as.factor(X2):as.factor(X5) - 
+                                  as.factor(X2):X10 - as.factor(X2):X11 - 
+                                  as.factor(X3):as.factor(X4) - 
+                                  as.factor(X3):as.factor(X5) - 
+                                  as.factor(X3):X8 - as.factor(X3):X14 - 
+                                  as.factor(X3):X15 - as.factor(X5):X8 - 
+                                  as.factor(X5):X11 - as.factor(X5):X14 - 
+                                  as.factor(X5):X15 - X6:X11 - X6:X14 - X7:X15 - 
+                                  X8:X13 - X9:X12 - X9:X15 - X11:X15 - X12:X14)
+AIC(simulation_lm_small_2)
+# AIC = 1817.085
+BIC(simulation_lm_small_2)
+# BIC = 2276.103
+# fit the model into the test dataset, using the model from the stepwise results 
+sim_predict_lm_small_2 <- predict(simulation_lm_small_2, test_sim_1)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_1[, 17], sim_predict_lm_small_2)
+# MAE: 1.948308, MSE: 6.250656 , RMSE: 2.500131, MAPE: 4.760371e-06
+# remove variables based on Anova results
+simulation_lm_small_3 <- update(simulation_lm_small_1, .~. - 
+                                  as.factor(X3):as.factor(X5) - X11:X15	- 
+                                  as.factor(X5):X15	- as.factor(X5):X11 - 
+                                  X6:X14 - as.factor(X3):X14 - 
+                                  as.factor(X2):X11 - as.factor(X3):X8 - 
+                                  as.factor(X2):X10 - as.factor(X5):X14 - 
+                                  as.factor(X2):as.factor(X5) - 
+                                  as.factor(X3):X15 - 
+                                  as.factor(X1):as.factor(X4) - X7:X15 - 
+                                  X9:X15 - as.factor(X1):X7 - as.factor(X5):X8 - 
+                                  X6:X11 - X8:X13 - 
+                                  as.factor(X3):as.factor(X4) - X9:X13 - 
+                                  X9:X12 - as.factor(X5):X6 - 
+                                  as.factor(X3):X11 - as.factor(X3):X6 - 
+                                  as.factor(X4):X10 - X12:X14 - X14:X15 - 
+                                  as.factor(X4):X8 - as.factor(X5):X7 - X9:X11)
+AIC(simulation_lm_small_3)
+# AIC = 1847.75
+BIC(simulation_lm_small_3)
+# BIC = 2262.862
+Anova_simulation_lm_small_3 <- Anova(simulation_lm_small_3)
+# X6:X13 and as.factor(X4):X15 are statistically insignificant at 5% level
+# try fiting the model into the test dataset, using the third model from Anova
+sim_predict_lm_small_3 <- predict(simulation_lm_small_3, test_sim_1)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_1[, 17], sim_predict_lm_small_3)
+# MAE: 1.943739, MSE:6.046465, RMSE: 2.458956, MAPE: 4.735639e-06
+# fit another model where X6:X13 and as.factor(X4):X15 are removed
+simulation_lm_small_4 <- update(simulation_lm_small_3, .~. - X6:X13 - 
+                                  as.factor(X4):X15)
+AIC(simulation_lm_small_4)
+# AIC = 1850.376 (AIC increased from the previous model)
+BIC(simulation_lm_small_4)
+# BIC = 2257.505 (BIC decreased from the previous model)
+Anova_simulation_lm_small_4 <- Anova(simulation_lm_small_4)
+# now all the terms are statistically significant at 5% level
+# find the error rate in predicting the test data
+sim_predict_lm_small_4 <- predict(simulation_lm_small_4, test_sim_1)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_1[, 17], sim_predict_lm_small_4)
+# MAE: 1.890637, MSE:5.785013, RMSE: 2.405205, MAPE: 4.617643e-06 
+# lower errror rate than the stepwise regression
+
+# fit the linear model when n = 5000
+simulation_data_2 <- sim_create(5000)
+# split the data into training and test 
+# create the partition
+set.seed(100)
+smp_size_sim_2 <- floor(0.8 * nrow(simulation_data_2))
+train_ind_sim_2 <- sample(seq_len(nrow(simulation_data_2)), 
+                          size = smp_size_sim_2)
+train_sim_2 <- simulation_data_2[train_ind_sim_2, ]
+test_sim_2 <- simulation_data_2[-train_ind_sim_2, ]
+# fit a linear model
+simulation_lm_medium_1 <- lm(X17 ~ (as.factor(X1) + as.factor(X2) + 
+                                      as.factor(X3) + as.factor(X4) + 
+                                      as.factor(X5) + X6 + X7 + X8 + X9 + X10 + 
+                                      X11 + X12 + X13 + X14 + X15) ^ 2, 
+                             data = train_sim_2)
+Anova_simulation_lm_medium_1 <- Anova(simulation_lm_medium_1)
+View(Anova_simulation_lm_medium_1)
+AIC(simulation_lm_medium_1)
+# AIC = 17050.21
+BIC(simulation_lm_medium_1)
+# BIC = 17912.49
+step(simulation_lm_medium_1, direction = "backward")
+# remove variables based on stepwise results 
+simulation_lm_medium_2 <- update(simulation_lm_medium_1, .~. - 
+                                   as.factor(X1):X7 - 
+                                   as.factor(X2):as.factor(X5) - 
+                                   as.factor(X2):X10 - 
+                                   as.factor(X3):as.factor(X4) - 
+                                   as.factor(X3):as.factor(X5) - 
+                                   as.factor(X3):X11 - as.factor(X3):X14 - 
+                                   as.factor(X4):X14 - as.factor(X4):X15 -
+                                   as.factor(X5):X6 - as.factor(X5):X14 - 
+                                   as.factor(X5):X15 - X6:X11 - X6:X13 - 
+                                   X6:X14 - X7:X15 - X8:X13 - X9:X12 -X9:X13 - 
+                                   X9:X15 - X11:X15 - X12:X14 - X14:X15)
+AIC(simulation_lm_medium_2)
+# AIC = 17014.83
+BIC(simulation_lm_medium_2)
+# BIC = 17726.06
+# fit the model into the test dataset, using the model from the stepwise results 
+sim_predict_lm_medium_2 <- predict(simulation_lm_medium_2, test_sim_2)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_2[, 17], sim_predict_lm_medium_2)
+# MAE: 1.542820, MSE: 3.695426, RMSE: 1.922349, MAPE: 3.777717e-06
+# remove variables based on Anova results
+simulation_lm_medium_3 <- update(simulation_lm_medium_1, .~. - 
+                                   as.factor(X3):X11 -
+                                   as.factor(X3):as.factor(X5) - X6:X14 - 
+                                   as.factor(X4):X15 - as.factor(X5):X6 - 
+                                   X8:X13 - X7:X15 - X11:X15 - X12:X14 - 
+                                   as.factor(X1):X7 - 
+                                   as.factor(X3):as.factor(X4) - X9:X15 - 
+                                   X14:X15 - as.factor(X5):X15 - 
+                                   as.factor(X2):X10 - as.factor(X3):X14 - 
+                                   as.factor(X5):X14 - X6:X13 - X9:X12 - 
+                                   X6:X11 - as.factor(X2):as.factor(X5) - 
+                                   X9:X13 - as.factor(X4):X14 - 
+                                   as.factor(X4):X8 - as.factor(X2):X11 -
+                                   as.factor(X4):X10 - as.factor(X3):X15)
+AIC(simulation_lm_medium_3)
+# AIC = 17017.14
+BIC(simulation_lm_medium_3)
+# BIC = 17703.19
+# fit the model into the test dataset, using the model from the Anova 
+sim_predict_lm_medium_3 <- predict(simulation_lm_medium_3, test_sim_2)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_2[, 17], sim_predict_lm_medium_3)
+# MAE: 1.540466, MSE:3.685489, RMSE: 1.919763, MAPE: 3.771073e-06
+Anova_simulation_lm_medium_3 <- Anova(simulation_lm_medium_3)
+# remove X9:X11
+simulation_lm_medium_4 <- update(simulation_lm_medium_3, .~. - X9:X11)
+AIC(simulation_lm_medium_4)
+# AIC = 17018.81 (AIC increased by less than 2 points)
+BIC(simulation_lm_medium_4)
+# BIC = 17698.57 (BIC decreased)
+sim_predict_lm_medium_4 <- predict(simulation_lm_medium_4, test_sim_2)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_2[, 17], sim_predict_lm_medium_4)
+# MAE: 1.541267, MSE:3.676738, RMSE: 1.917482, MAPE: 3.773769e-06
+# prefers this model with less covariates 
+# the estimated coefficients of X9:X11 = 0 was set to 0 initially
+
+set.seed(100)
+# for n = 10000
+simulation_data_3 <- sim_create(10000)
+# split the data into training and test 
+# create the partition
+smp_size_sim_3 <- floor(0.8 * nrow(simulation_data_3))
+train_ind_sim_3 <- sample(seq_len(nrow(simulation_data_3)), 
+                          size = smp_size_sim_3)
+train_sim_3 <- simulation_data_3[train_ind_sim_3, ]
+test_sim_3 <- simulation_data_3[-train_ind_sim_3, ]
+# fit a linear model
+simulation_lm_large_1 <- lm(X17 ~ (as.factor(X1) + as.factor(X2) + 
+                                     as.factor(X3) + as.factor(X4) + 
+                                     as.factor(X5) + X6 + X7 + X8 + X9 + X10 + 
+                                     X11 + X12 + X13 + X14 + X15) ^ 2, 
+                            data = train_sim_3)
+Anova_simulation_lm_large_1 <- Anova(simulation_lm_large_1)
+View(Anova_simulation_lm_large_1)
+AIC(simulation_lm_large_1)
+# AIC = 34090.98
+BIC(simulation_lm_large_1)
+# BIC = 35048.23
+step(simulation_lm_large_1, direction="backward")
+# remove variables based on stepwise results 
+simulation_lm_large_2 <- update(simulation_lm_large_1, .~. - 
+                                  as.factor(X1):X7 - 
+                                  as.factor(X2):as.factor(X5) -
+                                  as.factor(X2):X10 - as.factor(X2):X11 - 
+                                  as.factor(X3):as.factor(X4) - 
+                                  as.factor(X3):as.factor(X5) - 
+                                  as.factor(X3):X8 - as.factor(X3):X11 - 
+                                  as.factor(X3):X14 - as.factor(X3):X15 - 
+                                  as.factor(X4):X10 - as.factor(X4):X14 - 
+                                  as.factor(X4):X15 - as.factor(X5):X6 - 
+                                  as.factor(X5):X11 - as.factor(X5):X14 - 
+                                  X6:X13 - X6:X14 - X7:X15 - X8:X13 - X9:X11 - 
+                                  X9:X12 - X9:X13 - X9:X15 - X11:X15 - X12:X14 - 
+                                  X14:X15)
+
+AIC(simulation_lm_large_2)
+# AIC = 34047.27
+BIC(simulation_lm_large_2)
+# BIC = 34808.87
+# fit the model into the test dataset, using the model from the stepwise results 
+sim_predict_lm_large_2 <- predict(simulation_lm_large_2, test_sim_3)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_3[, 17], sim_predict_lm_large_2)
+# MAE: 1.599453, MSE: 3.961560, RMSE: 1.990367, MAPE: 3.903011e-06
+# remove variables based on Anova results
+simulation_lm_large_3 <- update(simulation_lm_large_1, .~. - 
+                                  as.factor(X3):X14 - X11:X15 - 
+                                  as.factor(X2):as.factor(X5) - 
+                                  as.factor(X5):X14 - X9:X12 - X9:X11 - X6:X14 - 
+                                  X12:X14 - X6:X13 - as.factor(X3):X11 - 
+                                  as.factor(X4):X14 - X9:X13 - 
+                                  as.factor(X3):as.factor(X4) -
+                                  as.factor(X5):X11 - as.factor(X4):X15 - 
+                                  as.factor(X3):X15 - as.factor(X5):X6 - 
+                                  as.factor(X3):as.factor(X5) - 
+                                  as.factor(X2):X11 - X14:X15 - X7:X15 - 
+                                  X8:X13 - as.factor(X2):X10 - X9:X15 - 
+                                  as.factor(X4):X10 - as.factor(X1):X7 - 
+                                  as.factor(X3):X8 - X6:X11 - as.factor(X5):X15)
+AIC(simulation_lm_large_3)
+# AIC = 34048.83
+BIC(simulation_lm_large_3)
+# BIC = 34796.46
+Anova_simulation_lm_large_3 <- Anova(simulation_lm_large_3)
+# all predictors are now statistically relevant at 5% significant level 
+# fit the model into the test dataset, using the model from the Anova 
+sim_predict_lm_large_3 <- predict(simulation_lm_large_3, test_sim_3)
+require('DMwR')
+# check on all predictive power
+DMwR::regr.eval(test_sim_3[, 17], sim_predict_lm_large_3)
+# MAE: 1.598828, MSE: 3.959367, RMSE: 1.989816, MAPE: 3.901558e-06 
+# check for multicollinearity
+require(car)
+require(VIF)
+# check for the multicollinearity for a given linear model 
+# output the no of variables with GVIF > 5 or 
+# GVIF^(1/2df) > 5 for variables with df > 1, average VIF
+# and total no of variables
+car::vif(simulation_lm_small_4)
+simulation_VIF_check <- function(n) {
+  # create a vector of the correlated variables
+  no <- c()
+  value <- c()
+  vif <- car::vif(n)
+  # check on the GVIF for variables with df = 1
+  for (i in (1:nrow(vif))){
+    if (vif[i, 2] > 1) {
+      if (vif[i, 3] > 5) {
+        no <- c(no, i)
+        val <- vif[i, 3]
+        value <- c(value, val)
+      }
+    }
+    # check on GVIF^(1/2df) for variables with df > 1
+    if (vif[i, 2] == 1) {
+      if (vif[i, 1] > 5) {
+        no <- c(no, i)
+        val <- vif[i, 1]
+        value <- c(value, val)
+      }
+    }
+  }
+  return(list(length(no), mean(value), nrow(vif)))
+}
+
+# check the VIF for the linear model from stepwise and Anova 
+# when n = 500
+simulation_vif_small_1 <- simulation_VIF_check(simulation_lm_small_2)
+simulation_vif_small_2 <- simulation_VIF_check(simulation_lm_small_4)
+# when n = 5000
+simulation_vif_medium_1 <- simulation_VIF_check(simulation_lm_medium_2)
+simulation_vif_medium_2 <- simulation_VIF_check(simulation_lm_medium_4)
+# when n = 10000
+simulation_vif_large_1 <- simulation_VIF_check(simulation_lm_large_2)
+simulation_vif_large_2 <- simulation_VIF_check(simulation_lm_large_3)
+# penalised regression
+library(glmnet)
+# transform the data into a matrix model 
+# a function that inputs a number of observations 
+# and outputs the data for penalised regression
+sim_penalised_create <- function(n) {
+  # for small dataset
+  if (n == 1) {
+    simulation <- simulation_data_1
+  }
+  # for medium dataset
+  if (n == 2) {
+    simulation <- simulation_data_2
+  }
+  # for large dataset
+  if (n == 3) {
+    simulation <- simulation_data_3
+  }
+  # separate the factors in first column into another column
+  # so there are 6 factor variables and 10 continuous variables
+  c <- sample("1", nrow(simulation), replace = TRUE)
+  simulation <- cbind(simulation[,1], c, simulation[, 2:17])
+  for (i in (1:nrow(simulation))) {
+    if (simulation[i, 1] == "3") {
+      simulation[i, 1] <- "1"
+      # change the second column into a character 
+      simulation[, 2] <- as.character(simulation[, 2])
+      # when X1 = 3, value on second column = 2
+      simulation[i, 2] <- "2"
+    }
+    simulation[, 2] <- as.factor(simulation[, 2])
+  }
+  # Ridge regression cannot compute the formula, so compute the interactions 
+  # add interactions in every column
+  # every column represents every variable
+  # interactions for as.factor(X1) = 2 with other factor variables; column 19-22
+  for (i in 1:4) {
+    add <- (simulation[, 1] == "2") * (simulation[, i + 2] == "2")
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X1) = 2 with other continuous variables; 
+  # column 23-32
+  for (i in 1:10) {
+    add <- (simulation[, 1] == "2") * (simulation[, 6 + i])
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X1) = 3 with other factor variables; column 33-36
+  for (i in 1:4) {
+    add <- (simulation[, 2] == "2") * (simulation[, i + 2] == "2")
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X1) = 3 with other continuous variables; 
+  # column 37-46
+  for (i in 1:10) {
+    add <- (simulation[, 2] == "2") * (simulation[, 6 + i])
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X2) = 2 with other factor variables; column 47-49
+  for (i in 1:3) {
+    add <- (simulation[, 3] == "2") * (simulation[, i + 3] == "2")
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X2) = 2 with other continuous variables; 
+  # column 50-59
+  for (i in 1:10) {
+    add <- (simulation[, 3] == "2") * (simulation[, 6 + i])
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X3) = 2 with other factor variables; column 60-61
+  for (i in 1:2) {
+    add <- (simulation[, 4] == "2") * (simulation[, i + 4] == "2")
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X3) = 2 with other continuous variables; 
+  # column 62-71
+  for (i in 1:10) {
+    add <- (simulation[, 4] == "2") * (simulation[, 6 + i])
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X4) = 2 with factor variables (X5); column 72
+  simulation[, 72] <- (simulation[, 5] == "2") * (simulation[, 6] == "2")
+  # interactions for as.factor(X4) = 2 with other continuous variables; 
+  # column 73-82
+  for (i in 1:10) {
+    add <- (simulation[, 5] == "2") * (simulation[, 6 + i])
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for as.factor(X5) = 2 with other continuous variables; 
+  # column 83-92
+  for (i in 1:10) {
+    add <- (simulation[, 6] == "2") * (simulation[, 6 + i])
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X6 with other continuous variables; column 93-101
+  for (i in 1:9) {
+    add <- simulation[, 7] * simulation[, 7 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X7 with other continuous variables; column 102-109
+  for (i in 1:8) {
+    add <- simulation[, 8] * simulation[, 8 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X8 with other continuous variables; column 110-116
+  for (i in 1:7) {
+    add <- simulation[, 9] * simulation[, 9 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X9 with other continuous variables; column 117-122
+  for (i in 1:6) {
+    add <- simulation[, 10] * simulation[, 10 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X10 with other continuous variables; column 123-127
+  for (i in 1:5) {
+    add <- simulation[, 11] * simulation[, 11 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X11 with other continuous variables; column 128-131
+  for (i in 1:4) {
+    add <- simulation[, 12] * simulation[, 12 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X12 with other continuous variables; column 132-134
+  for (i in 1:3) {
+    add <- simulation[, 13] * simulation[, 13 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X13 with other continuous variables; column 135, 136
+  for (i in 1:2) {
+    add <- simulation[, 14] * simulation[, 14 + i]
+    simulation <- cbind(simulation, add)
+  }
+  # interactions for X14 with X15; column 137
+  simulation[, 137] <- simulation[, 15] * simulation[, 16]
+  # create a model matrix for all explanatory variables 
+  # the final data has 135 columns
+  x_penalised_sim <- data.matrix(simulation[, -c(17,18)])
+  return(x_penalised_sim)
+}
+set.seed(100)
+library(dplyr)
+# try different values of lambdas for penalised regression; 
+# lambda given as a grid and with no lambdas given
+lambdas <- 10^seq(3, -12, by = -.1)
+# provide the data for train and test at each sample size
+# when n = 500
+simulation_penalised_small <- sim_penalised_create(1)
+# separate the training and testing data
+xtrain_penalised_sim_small <- simulation_penalised_small[train_ind_sim_1, ] %>% 
+  as.matrix()
+xtest_penalised_sim_small <- simulation_penalised_small[-train_ind_sim_1, ] %>% 
+  as.matrix()
+# the column for the response variable
+y_penalised_sim_small <- simulation_data_1[, 17] %>% as.matrix()
+# column for response variable in train and test
+ytrain_penalised_sim_small <- y_penalised_sim_small[train_ind_sim_1] %>% 
+  as.matrix()
+ytest_penalised_sim_small <- y_penalised_sim_small[-train_ind_sim_1] %>% 
+  as.matrix()
+# when n = 5000
+simulation_penalised_medium <- sim_penalised_create(2)
+# separate the training and testing data
+set.seed(100)
+xtrain_penalised_sim_medium <- 
+  simulation_penalised_medium[train_ind_sim_2, ] %>% as.matrix()
+xtest_penalised_sim_medium <- 
+  simulation_penalised_medium[-train_ind_sim_2, ] %>% as.matrix()
+# the column for the response variable
+y_penalised_sim_medium <- simulation_data_2[, 17] %>% as.matrix()
+# column for response variable in train and test
+ytrain_penalised_sim_medium <- y_penalised_sim_medium[train_ind_sim_2] %>% 
+  as.matrix()
+ytest_penalised_sim_medium <- y_penalised_sim_medium[-train_ind_sim_2] %>% 
+  as.matrix()
+# when n = 10000
+simulation_penalised_large <- sim_penalised_create(3)
+# separate the training and testing data
+set.seed(100)
+xtrain_penalised_sim_large <- simulation_penalised_large[train_ind_sim_3, ] %>% 
+  as.matrix()
+xtest_penalised_sim_large <- simulation_penalised_large[-train_ind_sim_3, ] %>%
+  as.matrix()
+# the column for the response variable
+y_penalised_sim_large <- simulation_data_3[, 17] %>% as.matrix()
+# column for response variable in train and test
+ytrain_penalised_sim_large <- y_penalised_sim_large[train_ind_sim_3] %>% 
+  as.matrix()
+ytest_penalised_sim_large <- y_penalised_sim_large[-train_ind_sim_3] %>% 
+  as.matrix()
+# input is the predicted vector and the true value
+# output is the value of mae, mse, rmse, mape
+error_metric <- function(prediction, test){
+  mse <- mean((prediction - test)^2)
+  rmse <- sqrt(mse)
+  mae <- sum(abs(prediction - test)) / length(test)
+  mape <- (100 / length(test)) * sum((abs(prediction - test)) / (abs(test)))
+  return(list(mse, rmse, mae, mape))
+}
+# a function that inputs the range of lambda, type of regression performed,
+# train and testing dataset, alpha for elastic net regression 
+# this function outputs the test error rate and coefficients of the predictors
+penalised <- function(lambda, type, xtrain, ytrain, xtest, ytest, alpha) {
+  # lambda given as a grid when lambda = 1
+  if (lambda == 1) {
+    # perform ridge regression when type = 1
+    if (type == 1) {
+      # use cross-validation to find the optimal value of lambda 
+      # standardise the explanatory variables
+      # alpha = 0
+      model <- cv.glmnet(xtrain, ytrain, alpha = 0, lambda = lambdas)
+    } else if (type == 2) {
+      # perform lasso regression (alpha = 1)  
+      model <- cv.glmnet(xtrain, ytrain, alpha = 1, lambda = lambdas) 
+    } else if (type == 3) {
+      # perform elastic net regression using the optimal alpha 
+      model <- cv.glmnet(xtrain, ytrain, alpha = alpha, lambda = lambdas)
+    }
+  } else if (lambda == 0) {
+    # no grid of lambda given to find its optimal value
+    # perform ridge regression when type = 1
+    if (type == 1) {
+      # use cross-validation to find the optimal value of lambda 
+      # standardise the explanatory variables
+      # alpha = 0
+      model <- cv.glmnet(xtrain, ytrain, alpha = 0) 
+    } else if (type == 2) {
+      # perform lasso regression (alpha = 1)  
+      model <- cv.glmnet(xtrain, ytrain, alpha = 1) 
+    } else if (type == 3) {
+      # perform elastic net regression using the optimal alpha 
+      model <- cv.glmnet(xtrain, ytrain, alpha = alpha)
+    }
+  }
+  # fit final model using optimal lambda, predict on the test dataset
+  predict <- predict(model, s = model$lambda.min, newx = xtest)
+  # calculate the test error of the model
+  error <- error_metric(predict, ytest)
+  coef <- predict(model, type = "coefficients", s = model$lambda.min) 
+  return(list(error, coef))
+}
+# finding optimum alpha for the elastic net regression 
+# input is the range of lambdas to be used, training and testing data
+# output is the results of the mse on the test data for every iteration
+elastic_net <- function(lambda, xtrain, ytrain, xtest, ytest) {
+  set.seed(100)
+  list <- list()
+  # try the value of alpha from 0 to 1 to fit an elastic net regression
+  for (i in 0:1000) {
+    # indicate the value of alpha at every iteration  
+    name <- paste0("alpha", i / 1000)
+    if (lambda == 1) {
+      # lambda given as a grid
+      # 10-fold cv for the elastic net model and store it in the list
+      list[[name]] <-
+        cv.glmnet(xtrain, ytrain, alpha = i / 1000, lambda = lambdas)
+    } else if (lambda == 0) {
+      # no value of lambda given for modelling the elastic net 
+      list[[name]] <-
+        cv.glmnet(xtrain, ytrain, alpha = i / 1000)
+    }
+  }
+  results <- data.frame()
+  for (i in 0:1000) {
+    # build the table to display results
+    name <- paste0("alpha", i / 1000)
+    # use each model from the list to predict the test dataset
+    predict <- predict(list[[name]], s = list[[name]]$lambda.min, newx = xtest)
+    # calculate the MSE
+    mse <- mean((ytest - predict)^2)
+    # store the results and choose the alpha with the lowest mse 
+    temp <- data.frame(alpha = i / 1000, mse = mse, name = name)
+    results <- rbind(results, temp)
+  }
+  return(results)
+  # from the results, pick the value of alpha with the lowest MSE
+}
+# penalised regression using a grid of lambdas 
+# ridge regression, n = 500
+sim_ridge_small_1 <- penalised(1, 1, xtrain_penalised_sim_small, 
+                               ytrain_penalised_sim_small, 
+                               xtest_penalised_sim_small, 
+                               ytest_penalised_sim_small)
+# lasso regression, n = 500 
+sim_lasso_small_1 <- penalised(1, 2, xtrain_penalised_sim_small,
+                               ytrain_penalised_sim_small, 
+                               xtest_penalised_sim_small, 
+                               ytest_penalised_sim_small)
+# find the alpha for elastic net, n = 500
+alpha_small_1 <- elastic_net(1, xtrain_penalised_sim_small, 
+                             ytrain_penalised_sim_small, 
+                             xtest_penalised_sim_small, 
+                             ytest_penalised_sim_small)
+# optimum alpha at 0.172 with the lowest mse of 119791.0
+# elastic net regression, n = 500
+sim_elastic_small_1 <- penalised(1, 3, xtrain_penalised_sim_small, 
+                                 ytrain_penalised_sim_small, 
+                                 xtest_penalised_sim_small, 
+                                 ytest_penalised_sim_small, 0.172)
+# ridge regression, n = 5000
+sim_ridge_medium_1 <- penalised(1, 1, xtrain_penalised_sim_medium, 
+                                ytrain_penalised_sim_medium, 
+                                xtest_penalised_sim_medium, 
+                                ytest_penalised_sim_medium)
+# lasso regression, n = 5000
+sim_lasso_medium_1 <- penalised(1, 2, xtrain_penalised_sim_medium, 
+                                ytrain_penalised_sim_medium, 
+                                xtest_penalised_sim_medium, 
+                                ytest_penalised_sim_medium)
+# find the alpha for elastic net, n = 5000
+alpha_medium_1 <- elastic_net(1, xtrain_penalised_sim_medium, 
+                              ytrain_penalised_sim_medium, 
+                              xtest_penalised_sim_medium, 
+                              ytest_penalised_sim_medium)
+# optimum alpha at 0.652 with the lowest mse of 62859.06 
+# elastic net regression, n = 5000
+sim_elastic_medium_1 <- penalised(1, 3, xtrain_penalised_sim_medium, 
+                                  ytrain_penalised_sim_medium, 
+                                  xtest_penalised_sim_medium, 
+                                  ytest_penalised_sim_medium, 0.652)
+# ridge regression, n = 10000
+sim_ridge_large_1 <- penalised(1, 1, xtrain_penalised_sim_large, 
+                               ytrain_penalised_sim_large, 
+                               xtest_penalised_sim_large, 
+                               ytest_penalised_sim_large)
+# lasso regression, n = 10000
+sim_lasso_large_1 <- penalised(1, 2, xtrain_penalised_sim_large, 
+                               ytrain_penalised_sim_large, 
+                               xtest_penalised_sim_large, 
+                               ytest_penalised_sim_large)
+# find the alpha for elastic net, n = 10000
+alpha_large_1 <- elastic_net(1, xtrain_penalised_sim_large, 
+                             ytrain_penalised_sim_large, 
+                             xtest_penalised_sim_large, 
+                             ytest_penalised_sim_large)
+# optimum alpha at 0.544 with the lowest mse of 64338.27
+# elastic net regression, n = 10000
+sim_elastic_large_1 <- penalised(1, 3, xtrain_penalised_sim_large, 
+                                 ytrain_penalised_sim_large, 
+                                 xtest_penalised_sim_large, 
+                                 ytest_penalised_sim_large, 0.544)
+# penalised regression without any lambdas given 
+# ridge regression, n = 500
+sim_ridge_small_0 <- penalised(0, 1, xtrain_penalised_sim_small, 
+                               ytrain_penalised_sim_small, 
+                               xtest_penalised_sim_small, 
+                               ytest_penalised_sim_small)
+# lasso regression, n = 500 
+sim_lasso_small_0 <- penalised(0, 2, xtrain_penalised_sim_small, 
+                               ytrain_penalised_sim_small, 
+                               xtest_penalised_sim_small, 
+                               ytest_penalised_sim_small)
+# find the alpha for elastic net, n = 500
+alpha_small_0 <- elastic_net(0, xtrain_penalised_sim_small, 
+                             ytrain_penalised_sim_small, 
+                             xtest_penalised_sim_small, 
+                             ytest_penalised_sim_small)
+# optimum alpha at 0.082 with the lowest mse of 1155993
+# elastic net regression, n = 500
+sim_elastic_small_0 <- penalised(0, 3, xtrain_penalised_sim_small, 
+                                 ytrain_penalised_sim_small, 
+                                 xtest_penalised_sim_small, 
+                                 ytest_penalised_sim_small, 0.082)
+# ridge regression, n = 5000
+sim_ridge_medium_0 <- penalised(0, 1, xtrain_penalised_sim_medium, 
+                                ytrain_penalised_sim_medium, 
+                                xtest_penalised_sim_medium, 
+                                ytest_penalised_sim_medium)
+# lasso regression, n = 5000
+sim_lasso_medium_0 <- penalised(0, 2, xtrain_penalised_sim_medium, 
+                                ytrain_penalised_sim_medium, 
+                                xtest_penalised_sim_medium, 
+                                ytest_penalised_sim_medium)
+# find the alpha for elastic net, n = 5000
+alpha_medium_0 <- elastic_net(0, xtrain_penalised_sim_medium, 
+                              ytrain_penalised_sim_medium, 
+                              xtest_penalised_sim_medium, 
+                              ytest_penalised_sim_medium)
+# optimum alpha at 0.944 with the lowest mse of 1051622
+# elastic net regression, n = 5000
+sim_elastic_medium_0 <- penalised(0, 3, xtrain_penalised_sim_medium, 
+                                  ytrain_penalised_sim_medium, 
+                                  xtest_penalised_sim_medium, 
+                                  ytest_penalised_sim_medium, 0.944)
+# ridge regression, n = 10000
+sim_ridge_large_0 <- penalised(0, 1, xtrain_penalised_sim_large, 
+                               ytrain_penalised_sim_large, 
+                               xtest_penalised_sim_large, 
+                               ytest_penalised_sim_large)
+# lasso regression, n = 10000
+sim_lasso_large_0 <- penalised(0, 2, xtrain_penalised_sim_large, 
+                               ytrain_penalised_sim_large, 
+                               xtest_penalised_sim_large, 
+                               ytest_penalised_sim_large)
+# find the alpha for elastic net, n = 10000
+alpha_large_0 <- elastic_net(0, xtrain_penalised_sim_large, 
+                             ytrain_penalised_sim_large, 
+                             xtest_penalised_sim_large, 
+                             ytest_penalised_sim_large)
+# optimum alpha at 0.928  with the lowest mse of 1100973
+# elastic net regression, n = 10000
+sim_elastic_large_0 <- penalised(0, 3, xtrain_penalised_sim_large, 
+                                 ytrain_penalised_sim_large, 
+                                 xtest_penalised_sim_large, 
+                                 ytest_penalised_sim_large, 0.928)
+
+# machine learning methods
+# regression trees for different number of observations using 'tree'
+# 3 different methods of models; 'tree', 'rpart' and grid search for
+# optimal minsplit and maxdepth
+require(tree)
+# when n = 500
+# interactions between the variables have been involved in building the trees
+# we do not include interaction terms
+simulation_tree_small <- tree(X17 ~ (as.factor(X1) + as.factor(X2) +
+                                       as.factor(X3) + as.factor(X4) +
+                                       as.factor(X5) + X6 + X7 + X8 + X9 + X10 +
+                                       X11 + X12 + X13 + X14 + X15),
+                              data = train_sim_1)
+
+summary(simulation_tree_small)
+# only two variables (X9 and X13) used in the tree, 12 terminal nodes
+# plot the tree
+plot(simulation_tree_small)
+text(simulation_tree_small, pretty = 0)
+title(main = "Regression Tree (using 'tree')")
+# prune the trees using a cross-validation
+simulation_tree_small_cv <- cv.tree(simulation_tree_small)
+plot(simulation_tree_small_cv$size , simulation_tree_small_cv$dev ,type = 'b')
+# the lowest deviance at 12 nodes, so used the original tree, no need to prune
+predict_sim_tree_small <- predict(simulation_tree_small, newdata = test_sim_1)
+# prediction error
+error_metric_tree_small <- error_metric(predict_sim_tree_small,
+                                        test_sim_1[, 17])
+# MSE = 321037126, RMSE = 17917.51, MAE = 14066.01, MAPE = 3.453958
+require(rpart)
+require(rpart.plot)
+require(dplyr)
+require(purrr)
+set.seed(100)
+simulation_tree_small_2 <- rpart(formula = X17 ~ (as.factor(X1) +
+                                                    as.factor(X2) +
+                                                    as.factor(X3) +
+                                                    as.factor(X4) +
+                                                    as.factor(X5) + X6 + X7 +
+                                                    X8 + X9 + X10 + X11 + X12 +
+                                                    X13 + X14 + X15),
+                                 data = train_sim_1, method = "anova")
+# plot the tree
+rpart.plot(simulation_tree_small_2)
+title(main = "Regression Tree (using 'rpart')", line = 5)
+# look at the cptable for the ideal nsplit
+simulation_tree_small_2$cptable
+# minsplit = 10
+# function inputs a list of trees built with different no of minsplits and
+# maxdepth and outputs the optimum complexity parameter (cp) that
+# minimises the error rate
+sim_cp <- function(x) {
+  # find the model with the lowest error
+  min <- which.min(x$cptable[, "xerror"])
+  # print the value of the cp
+  cp <- x$cptable[min, "CP"]
+}
+# function inputs a list of trees built with different no of minsplits and
+# maxdepth and outputs the value of the minimum error of that model
+sim_min_error <- function(x) {
+  min <- which.min(x$cptable[, "xerror"])
+  xerror <- x$cptable[min, "xerror"]
+}
+# grid search for hyperparameter
+# at least 10-30 data point required before deducing whether to split or not
+# maximum 10-30 nodes allowed in the tree
+regtree <- function(data) {
+  grid <- expand.grid(minsplit = seq(20, 40, 1), maxdepth = seq(20, 40, 1))
+  model <- list()
+  for (i in (1:nrow(grid))) {
+    minsplit <- grid$minsplit[i]
+    maxdepth <- grid$maxdepth[i]
+    # train the model and store in the list
+    model[[i]] <- rpart(formula = X17 ~ (as.factor(X1) + as.factor(X2) +
+                                           as.factor(X3) + as.factor(X4) +
+                                           as.factor(X5) + X6 + X7 + X8 +
+                                           X9 + X10 + X11 + X12 + X13 +
+                                           X14 + X15), data = data,
+                        method = "anova",
+                        control = list(minsplit = minsplit,
+                                       maxdepth = maxdepth))
+  }
+  # present the number of minsplit, maxdepth and cp of the 5 models
+  # with the lowest error
+  results <- grid %>% mutate(cp = purrr::map_dbl(model, sim_cp),
+                             error = purrr::map_dbl(model, sim_min_error)) %>%
+    arrange(error) %>% top_n(-5, wt = error)
+  return(results)
+}
+# find the optimal level of minsplit, maxdepth and cp
+tree_optimal_cv_small <- regtree(train_sim_1)
+# optimal cp = 0.01
+optimal_small_tree <- rpart(formula = X17 ~ (as.factor(X1) + as.factor(X2) +
+                                               as.factor(X3) + as.factor(X4) +
+                                               as.factor(X5) + X6 + X7 + X8 +
+                                               X9 + X10 + X11 + X12 + X13 +
+                                               X14 + X15),
+                            data = train_sim_1, method = "anova",
+                            control = list(minsplit = 20, maxdepth = 22,
+                                           cp = 0.01))
+pred <- predict(optimal_small_tree, newdata = test_sim_1)
+error_metric(pred, test_sim_1[, 17])
+#find prediction error from the original model without tuning the parameters
+predict_sim_tree_small_2 <- predict(simulation_tree_small_2,
+                                    newdata = test_sim_1)
+error_metric_tree_small_2 <- error_metric(predict_sim_tree_small_2,
+                                          test_sim_1[, 17])
+# MSE = 365118167, RMSE = 19108.07, MAE = 14729.22, MAPE = 3.636384
+# tuning the minsplit and maxdepth or not results in the same results
+# for the prediction error
+
+# when n = 5000
+set.seed(100)
+# using 'tree'
+simulation_tree_medium <- tree(X17 ~ (as.factor(X1) + as.factor(X2) +
+                                        as.factor(X3) + as.factor(X4) +
+                                        as.factor(X5) + X6 + X7 + X8 + X9 +
+                                        X10 + X11 + X12 + X13 + X14 + X15),
+                               data = train_sim_2)
+
+summary(simulation_tree_medium)
+# only two variables (X9 and X13) used in constructing the tree, 12 nodes
+# plot the tree
+plot(simulation_tree_medium)
+text(simulation_tree_medium, pretty = 0)
+title(main = "Regression Tree (using 'tree')")
+# prune the trees using a cross-validation
+simulation_tree_medium_cv <- cv.tree(simulation_tree_medium)
+plot(simulation_tree_medium_cv$size, simulation_tree_medium_cv$dev ,type = 'b')
+# the lowest deviance at 12 nodes, so used the original tree, no need to prune
+predict_sim_tree_medium <- predict(simulation_tree_medium, newdata = test_sim_2)
+# prediction error
+error_metric_tree_medium <- error_metric(predict_sim_tree_medium,
+                                         test_sim_2[, 17])
+# MSE = 259435122, RMSE = 16106.99, MAE = 12825, MAPE = 3.148126
+# using 'rpart'
+set.seed(100)
+simulation_tree_medium_2 <- rpart(formula = X17 ~ (as.factor(X1) +
+                                                     as.factor(X2) +
+                                                     as.factor(X3) +
+                                                     as.factor(X4) +
+                                                     as.factor(X5) + X6 + X7 +
+                                                     X8 + X9 + X10 + X11 +
+                                                     X12 + X13 + X14 + X15),
+                                  data = train_sim_2, method = "anova")
+# plot the tree
+rpart.plot(simulation_tree_medium_2)
+title(main = "Regression Tree (using 'rpart')", line = 2)
+# look at the cptable for the ideal nsplit
+simulation_tree_medium_2$cptable
+# minsplit = 11
+# find the optimal level of minsplit, maxdepth and cp
+tree_optimal_cv_medium <- regtree(train_sim_2)
+# optimal cp = 0.01
+optimal_medium_tree <- rpart(formula = X17 ~ (as.factor(X1) + as.factor(X2) +
+                                                as.factor(X3) + as.factor(X4) +
+                                                as.factor(X5) + X6 + X7 + X8 +
+                                                X9 + X10 + X11 + X12 + X13 +
+                                                X14 + X15),
+                             data = train_sim_2, method = "anova",
+                             control = list(minsplit = 28, maxdepth = 25,
+                                            cp = 0.01))
+pred1 <- predict(optimal_medium_tree, newdata = test_sim_2)
+error_metric(pred1, test_sim_2[, 17])
+# tuning the minsplit and maxdepth results in the same prediction error
+predict_sim_tree_medium_2 <- predict(simulation_tree_medium_2,
+                                     newdata = test_sim_2)
+# find prediction error
+error_metric_tree_medium_2 <- error_metric(predict_sim_tree_medium_2,
+                                           test_sim_2[, 17])
+# MSE = 259435122, RMSE = 16106.99, MAE = 12825, MAPE = 3.148126
+# same results for the three methods
+
+# when n = 10000
+set.seed(100)
+# using 'tree'
+simulation_tree_large <- tree(X17 ~ (as.factor(X1) + as.factor(X2) +
+                                       as.factor(X3) + as.factor(X4) +
+                                       as.factor(X5) +  X6 + X7 + X8 + X9 +
+                                       X10 + X11 + X12 + X13 + X14 + X15),
+                              data = train_sim_3)
+
+summary(simulation_tree_large)
+# two variables (X9 and X13) used in constructing the tree, 12 terminal nodes
+# plot the tree
+plot(simulation_tree_large)
+text(simulation_tree_large, pretty = 0)
+title(main = "Regression Tree (using 'tree')")
+# prune the trees using a cross-validation
+simulation_tree_large_cv <- cv.tree(simulation_tree_large)
+plot(simulation_tree_large_cv$size , simulation_tree_large_cv$dev ,type = 'b')
+# the lowest deviance at 12 nodes, so used the original tree, no need to prune
+predict_sim_tree_large <- predict(simulation_tree_large, newdata = test_sim_3)
+# prediction error
+error_metric_tree_large <- error_metric(predict_sim_tree_large,
+                                        test_sim_3[, 17])
+# MSE = 280264786, RMSE = 16741.11, MAE = 13432.37, MAPE = 3.277669
+# using 'rpart'
+set.seed(100)
+simulation_tree_large_2 <- rpart(formula = X17 ~ (as.factor(X1) +
+                                                    as.factor(X2) +
+                                                    as.factor(X3) +
+                                                    as.factor(X4) +
+                                                    as.factor(X5) + X6 + X7 +
+                                                    X8 + X9 + X10 + X11 + X12 +
+                                                    X13 + X14 + X15),
+                                 data = train_sim_3, method = "anova")
+# plot the tree
+rpart.plot(simulation_tree_large_2)
+title(main = "Regression Tree (using 'rpart')", line = 2)
+# look at the cptable for the ideal nsplit
+simulation_tree_large_2$cptable
+# minsplit = 11
+# find the optimal level of minsplit, maxdepth and cp
+tree_optimal_cv_large <- regtree(train_sim_3)
+# optimal cp = 0.01
+optimal_large_tree <- rpart(formula = X17 ~ (as.factor(X1) + as.factor(X2) +
+                                               as.factor(X3) + as.factor(X4) +
+                                               as.factor(X5) +  X6 + X7 + X8 +
+                                               X9 + X10 + X11 + X12 + X13 +
+                                               X14 + X15), data = train_sim_3,
+                            method = "anova",
+                            control = list(minsplit = 40, maxdepth = 36,
+                                           cp = 0.01))
+pred2 <- predict(optimal_large_tree, newdata = test_sim_3)
+error_metric(pred2, test_sim_3[, 17])
+predict_sim_tree_large_2 <- predict(simulation_tree_large_2,
+                                    newdata = test_sim_3)
+#find prediction error
+error_metric_tree_large_2 <- error_metric(predict_sim_tree_large_2,
+                                          test_sim_3[, 17])
+# MSE = 280264786, RMSE = 16741.11, MAE = 13432.37, MAPE = 3.277669
+# same results for the three methods
+set.seed(100)
+library(randomForest)
+# bagging and random forest
+bag_or_random_forest <- function(n, data, test) {
+  set.seed(100)
+  # perform bagging
+  if (n == 0) {
+    # can not specify as.factor for the predictor
+    bag_sim <- randomForest(X17 ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 +
+                              X10 + X11 + X12 + X13 + X14 + X15, data = data,
+                            mtry = 15, importance = TRUE)
+    predict_bag <- predict(bag_sim, test)
+    error <- error_metric(predict_bag, test[, 17])
+  }
+  if (n == 1) {
+    # perform random forest
+    forest_sim <- randomForest(X17 ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 +
+                                 X9 + X10 + X11 + X12 + X13 + X14 + X15,
+                               data = data, importance = TRUE)
+    predict_forest <- predict(forest_sim, test)
+    error <- error_metric(predict_forest, test[, 17])
+  }
+  return(error)
+}
+# when n = 500
+bag_sim_small <- bag_or_random_forest(0, train_sim_1, test_sim_1)
+forest_sim_small <- bag_or_random_forest(1, train_sim_1, test_sim_1)
+# when n = 5000
+bag_sim_medium <- bag_or_random_forest(0, train_sim_2, test_sim_2)
+forest_sim_medium <- bag_or_random_forest(1, train_sim_2, test_sim_2)
+# when n = 10000
+bag_sim_large <- bag_or_random_forest(0, train_sim_3, test_sim_3)
+forest_sim_large <- bag_or_random_forest(1, train_sim_3, test_sim_3)
+# to visualise the tree
+library(usethis)
+library(reprtree)
+
+# support vector regression
+library(e1071)
+set.seed(100)
+# function inputs the data for building SVR and the test data for the test error
+# output is the prediction error of the model
+svr_tuned <- function(data, test) {
+  set.seed(100)
+  # build the svr model using the svm function, include the interaction terms
+  model <- svm(X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                        as.factor(X4) + as.factor(X5) + X6 + X7 + X8 + X9 +
+                        X10 + X11 + X12 + X13 + X14 + X15) ^ 2, data = data)
+  # predict the test data using the model
+  predict <- predict(model, test)
+  # compute the test error metric
+  error <- error_metric(predict, test[, 17])
+}
+# when n = 500
+svr_model_small <- svr_tuned(train_sim_1, test_sim_1)
+# when n = 5000
+svr_model_medium <- svr_tuned(train_sim_2, test_sim_2)
+# when n = 10000
+svr_model_large <- svr_tuned(train_sim_3, test_sim_3)
+
+# tune the epsilon and cost parameter using grid search
+# tune the hyperparameter - this will take some time using grid search
+tune_small <- tune(svm, X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                                 as.factor(X4) + as.factor(X5) + X6 + X7 + X8 +
+                                 X9 + X10 + X11 + X12 + X13 + X14 + X15) ^ 2,
+                   data = train_sim_1, ranges = list(epsilon = seq(0, 0.5, 0.1),
+                                                     cost = 2^(seq(2, 7, 1))))
+tune_small$best.model
+# look at the values of cost parameter
+plot(tune_small)
+# the darker region from the plot indicates a lower MSE
+# find the best model and adjust the epsilon and cost parameter
+tune_small1 <- tune(svm, X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                                  as.factor(X4) + as.factor(X5) + X6 + X7 + X8 +
+                                  X9 + X10 + X11 + X12 + X13 + X14 + X15) ^ 2,
+                    data = train_sim_1,
+                    ranges = list(epsilon = seq(0, 0.1, 0.01),
+                                  cost = 2^(seq(2, 5, 1))))
+tune_small1$best.model
+# look at the values of cost parameter, value did not change
+plot(tune_small1)
+predict_svr_small <- predict(tune_small1$best.model, test_sim_1)
+# compute the test error metric
+error_svr_small <- error_metric(predict_svr_small, test_sim_1[, 17])
+# when n = 5000
+tune_medium <- tune(svm, X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                                  as.factor(X4) + as.factor(X5) + X6 + X7 + X8 +
+                                  X9 + X10 + X11 + X12 + X13 + X14 + X15) ^ 2,
+                    data = train_sim_2,
+                    ranges = list(epsilon = seq(0, 0.4, 0.1),
+                                  cost = 2^(seq(2, 5, 1))))
+# predict the test data using the best model from tune, and from the
+predict_svr_medium <- predict(tune_medium$best.model, test_sim_2)
+# compute the test error metric
+error_svr_medium <- error_metric(predict_svr_medium, test_sim_2[, 17])
+# when n = 10000
+tune_large <- tune(svm, X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                                 as.factor(X4) + as.factor(X5) + X6 + X7 + X8 +
+                                 X9 + X10 + X11 + X12 + X13 + X14 + X15) ^ 2,
+                   data = train_sim_3,
+                   ranges = list(epsilon = seq(0, 0.3, 0.1),
+                                 cost = 2^(seq(2, 5, 1))))
+predict_svr_large <- predict(tune_large$best.model, test_sim_3)
+# compute the test error metric
+error_svr_large <- error_metric(predict_svr_large, test_sim_3[, 17])
+# predict the test data using the best model from tune required a long time, so
+# we build another SVR model
+svr_sim_large <- svm(X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                              as.factor(X4) + as.factor(X5) + X6 + X7 + X8 + 
+                              X9 + X10 + X11 + X12 + X13 + X14 + X15) ^ 2, 
+                     data = train_sim_3, epsilon = 0.02, cost = 8)
+predict_svr_large1 <- predict(svr_sim_large, test_sim_3)
+# compute the test error metric
+error_svr_large1 <- error_metric(predict_svr_large1, test_sim_3[, 17])
+# error was higher than the model without epsilon and cost, try specifying the 
+# kernel, type and gamma
+svr_sim_large2 <- svm(X17 ~ (as.factor(X1) + as.factor(X2) + as.factor(X3) +
+                               as.factor(X4) + as.factor(X5) + X6 + X7 + X8 + 
+                               X9 + X10 + X11 + X12 + X13 + X14 + X15) ^ 2, 
+                      data = train_sim_3, type = "eps-regression", 
+                      kernel = "radial", epsilon = 0.01, cost = 16, 
+                      gamma = 0.005)
+predict_svr_large2 <- predict(svr_sim_large2, test_sim_3)
+# compute the test error metric
+error_svr_large2 <- error_metric(predict_svr_large2, test_sim_3[, 17])
+# not tuning the svr results in a higher error rate
+
+# load the dataset into R
+setwd("~/Desktop/Stat Final Project")
+library(Hmisc)
+library(foreign)
+library(haven)
+dataset <- read_sav("torino_breast_select_minus10%con.sav")
+# Aim : we want to model the WEIGHT using the variables ----
+# variables chosen are ----
+x <- dataset
+colnames(x)[19] <- "WEIGHT"
+colnames(x)[2] <- "HEIGHT"
+colnames(x)[6] <- "WAIST"
+colnames(x)[7] <- "HIP"
+colnames(x)[28] <- "AGE"
+colnames(x)[18] <- "RETIRED"
+colnames(x)[22] <- "GENDER"
+# hours spent walking, cycling and physical exercise
+colnames(x)[102] <- "WALKING"
+colnames(x)[104] <- "CYCLING"
+colnames(x)[109] <- "EXERCISE"
+colnames(x)[112] <- "CIGARETTES"
+# transform the cigarettes into currently smoking and not
+x$CIGARETTES[x$CIGARETTES == 3] <- 2
+# check if the entry of cigarettes still contains 3
+which(x$CIGARETTES == 3)
+colnames(x)[186] <- "DIABETES"
+# food categories
+x[, 763] <- x[, 515] + x[, 516] + x[, 517] + x[, 518] + x[, 519] + x[, 520] + 
+  x[, 529] + x[, 722]
+colnames(x)[763] <- "PASTA"
+x[, 764] <- x[, 521] + x[, 522] + x[, 523] + x[, 524]
+colnames(x)[764] <- "RICE"
+x[, 765] <- x[, 525] + x[, 526] 
+colnames(x)[765] <- "SOUP"
+# butter or margarine
+x[, 766] <- x[, 531] + x[, 532] + x[, 536] + x[, 537] + x[, 541] + x[, 542] + 
+  x[, 717] + x[, 728] + x[, 729] + x[, 738] + x[, 739]
+colnames(x)[766] <- "SPREAD"
+x[, 767] <- x[, 533] + x[, 534] + x[, 538] + x[, 539] + x[, 543] + x[, 544] 
+colnames(x)[767] <- "OIL"
+colnames(x)[553] <- "POLENTA"
+x[, 768] <- x[, 552] + x[, 650] + x[, 651] + x[, 652] + x[, 653] + 
+  x[, 654] + x[, 655] + x[, 656] + x[, 657] + x[, 658] + x[, 659] + x[, 660] + 
+  x[, 661] + x[, 662] + x[, 663] + x[, 664]    
+colnames(x)[768] <- "CHEESE"
+x[, 769] <- x[, 554] + x[, 555] + x[, 556] 
+colnames(x)[769] <- "PIZZA"
+x[, 770] <- x[, 563] + x[, 559] + x[, 564] + x[, 565] + x[, 566] + x[, 567] + 
+  x[, 568] + x[, 569] + x[, 570] + x[, 571] + x[, 581] + x[, 583]
+colnames(x)[770] <- "BEEF"
+colnames(x)[560] <- "TURKEY"
+x[, 771] <- x[, 572] + x[, 647] 
+colnames(x)[771] <- "ANIMAL"
+x[, 772] <- x[, 573] + x[, 574] + x[, 642] + x[, 643] + x[, 644] + x[, 645] +
+  x[, 623]
+colnames(x)[772] <- "PORK"
+x[, 773] <- x[, 575] + x[, 576] + x[, 577] + x[, 578] + x[, 562]
+colnames(x)[773] <- "CHICKEN"
+colnames(x)[579] <- "RABBIT"
+x[, 774] <- x[, 580] + x[, 582]  
+colnames(x)[774] <- "OTHER_MEAT"
+# other than fish
+x[, 775] <- x[, 584] + x[, 585] + x[, 586]  
+colnames(x)[775] <- "SEAFOOD"
+x[, 776] <- x[, 587] + x[, 588] + x[, 589] + x[, 590] + x[, 591] + x[, 592] + 
+  x[, 593] + x[, 594]
+colnames(x)[776] <- "FISH"
+x[, 777] <- x[, 595] + x[, 596] + x[, 597] + x[, 598] + x[, 599] + x[, 614] + 
+  x[, 600] + x[, 625] + x[, 601] + x[, 615] + x[, 602] + x[, 627] + x[, 730] + 
+  x[, 740] + x[, 603] + x[, 628] + x[, 742] + x[, 604] + x[, 629] + x[, 733] + 
+  x[, 743] + x[, 605] + x[, 630] + x[, 734] + x[, 744] + x[, 606] + x[, 631] + 
+  x[, 735] + x[, 745] + x[, 607] + x[, 632] + x[, 609] + x[, 611] + x[, 612] + 
+  x[, 613] + x[, 616] + x[, 617] + x[, 618] + x[, 619] + x[, 620] + x[, 621] + 
+  x[, 622] + + x[, 624] + x[, 626] 
+colnames(x)[777] <- "VEGETABLES"
+x[, 778] <- x[, 634] + x[, 635] 
+colnames(x)[778] <- "EGGS"
+x[, 779] <- x[, 637] + x[, 638] + x[, 639]
+colnames(x)[779] <- "SANDWICH"
+x[, 780] <- x[, 665] + x[, 666] + x[, 667] + x[, 668] + x[, 669] + x[, 670] + 
+  x[, 671] + x[, 672] + x[, 673] + x[, 674] + x[, 675] + x[, 676] + x[, 677] 
+colnames(x)[780] <- "FRUITS"
+x[, 781] <- x[, 680] + x[, 681] + x[, 682] + x[, 683] + x[, 684] + x[, 714]
+colnames(x)[781] <- "BREAD"
+colnames(x)[689] <- "BEER"
+x[, 782] <- x[, 685] + x[, 686]
+colnames(x)[782] <- "WINE"
+x[, 783] <- x[, 690] + x[, 691] 
+colnames(x)[783] <- "JUICES"
+x[, 784] <- x[, 693] + x[, 694] 
+colnames(x)[784] <- "MILK"
+x[, 785] <- x[, 696] + x[, 697] + x[, 707] + x[, 709] + x[, 699] +
+  x[, 701] + x[, 695] + x[, 710]
+colnames(x)[785] <- "COFFEE"
+x[, 786] <- x[, 702] + x[, 711]
+colnames(x)[786] <- "TEA"
+x[, 787] <- x[, 703] + x[, 704] + x[, 705] + x[, 708]
+colnames(x)[787] <- "YOGURT"
+x[, 788] <- x[, 718] + x[, 719] + x[, 720] + x[, 725] + x[, 726] + x[, 610] 
+colnames(x)[788] <- "DESSERTS"
+library(dplyr)
+# create a new data frame with just relevant variables
+dat <- x %>% select(WEIGHT, HEIGHT, WAIST, HIP, AGE, RETIRED, GENDER, DIABETES,
+                    CIGARETTES, WALKING, CYCLING, EXERCISE, PASTA, RICE, SOUP, 
+                    SPREAD, OIL, POLENTA, CHEESE, PIZZA, BEEF, ANIMAL, PORK, 
+                    CHICKEN, RABBIT, OTHER_MEAT, SEAFOOD, FISH, VEGETABLES, EGGS, 
+                    SANDWICH, FRUITS, BREAD, BEER, WINE, JUICES, MILK, COFFEE, 
+                    TEA, YOGURT, TURKEY, DESSERTS)
+
+plot_relationship <- function(x){
+  par(mfrow = c(3,3))
+  plot(x$HEIGHT, x$WEIGHT, xlab = "HEIGHT", ylab = "WEIGHT")
+  plot(x$WAIST, x$WEIGHT, xlab = "WAIST CIRCUMFERENCE", ylab = "WEIGHT")
+  plot(x$HIP, x$WEIGHT, xlab = "HIP CIRCUMFERENCE", ylab = "WEIGHT")
+  plot(x$AGE, x$WEIGHT, xlab = "AGE", ylab = "WEIGHT")
+  plot(x$RETIRED, x$WEIGHT, xlab = "RETIRED", ylab = "WEIGHT")
+  plot(x$GENDER, x$WEIGHT, xlab = "GENDER", ylab = "WEIGHT")
+  plot(x$WALKING, x$WEIGHT, xlab = "WALKING", ylab = "WEIGHT")
+  plot(x$CYCLING, x$WEIGHT, xlab = "CYCLING", ylab = "WEIGHT")
+  plot(x$EXERCISE, x$WEIGHT, xlab = "EXERCISING", ylab = "WEIGHT")
+  plot(x$CIGARETTES, x$WEIGHT, xlab = "CIGARETTES", ylab = "WEIGHT")
+  plot(x$DIABETES, x$WEIGHT, xlab = "DIABETES", ylab = "WEIGHT")
+  plot(x$PASTA, x$WEIGHT, xlab = "PASTA", ylab = "WEIGHT")
+  plot(x$RICE, x$WEIGHT, xlab = "RICE", ylab = "WEIGHT")
+  plot(x$SOUP, x$WEIGHT, xlab = "SOUP", ylab = "WEIGHT")
+  plot(x$SPREAD, x$WEIGHT, xlab = "SPREAD", ylab = "WEIGHT")
+  plot(x$OIL, x$WEIGHT, xlab = "OIL", ylab = "WEIGHT")
+  plot(x$POLENTA, x$WEIGHT, xlab = "POLENTA", ylab = "WEIGHT")
+  plot(x$CHEESE, x$WEIGHT, xlab = "CHEESE", ylab = "WEIGHT")
+  plot(x$PIZZA, x$WEIGHT, xlab = "PIZZA", ylab = "WEIGHT")
+  plot(x$BEEF, x$WEIGHT, xlab = "BEEF", ylab = "WEIGHT")
+  plot(x$TURKEY, x$WEIGHT, xlab = "TURKEY", ylab = "WEIGHT")
+  plot(x$ANIMAL, x$WEIGHT, xlab = "ANIMAL", ylab = "WEIGHT")
+  plot(x$PORK, x$WEIGHT, xlab = "PORK", ylab = "WEIGHT")
+  plot(x$CHICKEN, x$WEIGHT, xlab = "CHICKEN", ylab = "WEIGHT")
+  plot(x$RABBIT, x$WEIGHT, xlab = "RABBIT", ylab = "WEIGHT")
+  plot(x$OTHER_MEAT, x$WEIGHT, xlab = "OTHER MEAT", ylab = "WEIGHT")
+  plot(x$SEAFOOD, x$WEIGHT, xlab = "SEAFOOD", ylab = "WEIGHT")
+  plot(x$FISH, x$WEIGHT, xlab = "FISH", ylab = "WEIGHT")
+  plot(x$VEGETABLES, x$WEIGHT, xlab = "VEGETABLES", ylab = "WEIGHT")
+  plot(x$EGGS, x$WEIGHT, xlab = "EGGS", ylab = "WEIGHT")
+  plot(x$BREAD, x$WEIGHT, xlab = "BREAD", ylab = "WEIGHT")
+  plot(x$SANDWICH, x$WEIGHT, xlab = "SANDWICH", ylab = "WEIGHT")
+  plot(x$FRUITS, x$WEIGHT, xlab = "FRUITS", ylab = "WEIGHT")
+  plot(x$BEER, x$WEIGHT, xlab = "BEER", ylab = "WEIGHT")
+  plot(x$WINE, x$WEIGHT, xlab = "WINE", ylab = "WEIGHT")
+  plot(x$JUICES, x$WEIGHT, xlab = "JUICES", ylab = "WEIGHT")
+  plot(x$MILK, x$WEIGHT, xlab = "MILK", ylab = "WEIGHT")
+  plot(x$COFFEE, x$WEIGHT, xlab = "COFFEE", ylab = "WEIGHT")
+  plot(x$TEA, x$WEIGHT, xlab = "TEA", ylab = "WEIGHT")
+  plot(x$YOGURT, x$WEIGHT, xlab = "YOGURT", ylab = "WEIGHT")
+  plot(x$DESSERTS, x$WEIGHT, xlab = "DESSERTS", ylab = "WEIGHT")
+  par(mfrow = c(1,1))
+}
+# plot exploratory analysis of all independent variables before removing NAs
+plot_relationship(dat)
+# remove the missing observations
+dat <- dat[complete.cases(dat),]
+# confirm for missing values at random by replotting the graph
+plot_relationship(dat)
+# look if values of data are within the correct range
+summary(dat$HEIGHT)
+summary(dat$WAIST)
+summary(dat$HIP)
+summary(dat$AGE)
+summary(dat$RETIRED)
+summary(dat$GENDER)
+summary(dat$DIABETES)
+summary(dat$CIGARETTES)
+summary(dat$WALKING)
+summary(dat$CYCLING)
+summary(dat$EXERCISE)
+summary(dat$PASTA)
+summary(dat$RICE)
+summary(dat$SOUP)
+summary(dat$SPREAD)
+summary(dat$OIL)
+summary(dat$POLENTA)
+summary(dat$CHEESE)
+summary(dat$PIZZA)
+summary(dat$BEEF)
+summary(dat$ANIMAL)
+summary(dat$PORK)
+summary(dat$CHICKEN)
+summary(dat$RABBIT)
+summary(dat$OTHER_MEAT)
+summary(dat$SEAFOOD)
+summary(dat$FISH)
+summary(dat$VEGETABLES)
+summary(dat$EGGS)
+summary(dat$SANDWICH)
+summary(dat$FRUITS)
+summary(dat$BREAD)
+summary(dat$BEER)
+summary(dat$WINE)
+summary(dat$JUICES)
+summary(dat$MILK)
+summary(dat$COFFEE)
+summary(dat$TEA)
+summary(dat$YOGURT)
+summary(dat$SPREAD)
+summary(dat$TURKEY)
+summary(dat$DESSERTS)
+# remove observations when the values of the food categories exceed 1000
+dat <- subset(dat, dat$TEA < 1000)
+dat <- subset(dat, dat$MILK < 1000)
+dat <- subset(dat, dat$BREAD < 1000)
+dat <- subset(dat, dat$JUICES < 1000)
+dat <- subset(dat, dat$BEER < 1000)
+dat <- subset(dat, dat$WINE < 1000)
+dat <- subset(dat, dat$FRUITS < 2000)
+# exploratory data analysis after removing 10% of data
+plot_relationship(dat)
+# start modelling the data
+# set the seed to make this project reproducible
+set.seed(100)
+# split the dataset; 80% train and 20% test
+smp_size <- floor(0.8 * nrow(dat))
+train_ind <- sample(seq_len(nrow(dat)), size = smp_size)
+train <- dat[train_ind, ]
+test <- dat[-train_ind, ]
+# we first study all variables and interaction terms using a multiple regression
+m1 <- lm (formula = WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                                as.factor(GENDER) + WALKING + CYCLING + 
+                                EXERCISE + as.factor(CIGARETTES) + 
+                                as.factor(DIABETES) + PASTA + RICE + SOUP + 
+                                SPREAD + OIL + POLENTA + CHEESE + PIZZA + BEEF +
+                                TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                                OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + 
+                                EGGS + SANDWICH + FRUITS + BREAD + BEER + WINE + 
+                                JUICES + MILK + COFFEE + TEA + YOGURT + 
+                                DESSERTS) ^ 2, data = train)
+summary(m1)
+# check the p-values
+AIC(m1)
+# AIC = 35525.02
+BIC(m1)
+# BIC = 31349.35
+require(car)
+Anova_m1<- Anova(m1) 
+# number of variables that are statistically significant
+length(which(Anova_m1$`Pr(>F)`< 0.05))
+Anova_m1[order(Anova_m1$`Pr(>F)`),]
+# find the statistically significant variables; order them based on p-values
+require(MuMIn)
+options(na.action='na.fail')
+best_m1 <- dredge(m1)
+# dredge does not work as no of predictors exceed R's capacity
+# step takes a very long time too to perform 
+step(m1, direction = "backward")
+m2 <- lm(formula = WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(GENDER) + 
+                               EXERCISE + CYCLING + as.factor(CIGARETTES) + 
+                               PASTA + SPREAD + PORK + CHICKEN + SANDWICH + 
+                               WINE + RICE + BEEF + as.factor(DIABETES) + OIL + 
+                               BREAD + SEAFOOD + CHEESE + OTHER_MEAT + MILK + 
+                               TEA + EGGS + BEER + COFFEE + POLENTA + 
+                               VEGETABLES + FISH + ANIMAL + TURKEY + PIZZA + 
+                               SOUP + DESSERTS + FRUITS + WALKING + RABBIT + 
+                               YOGURT + HEIGHT:WAIST + HEIGHT:HIP + 
+                               HEIGHT:as.factor(GENDER) + HEIGHT:TURKEY + 
+                               WAIST:HIP + WAIST:as.factor(GENDER) + 
+                               WAIST:EXERCISE + WAIST:PIZZA + WAIST:ANIMAL + 
+                               WAIST:DESSERTS + HIP:as.factor(GENDER) + 
+                               HIP:EXERCISE + HIP:PIZZA + HIP:TURKEY + 
+                               AGE:ANIMAL + AGE:FRUITS + AGE:DESSERTS + 
+                               as.factor(GENDER):EXERCISE + 
+                               as.factor(GENDER):PIZZA + WALKING:RABBIT + 
+                               WALKING:YOGURT + CYCLING:FRUITS + 
+                               CYCLING:YOGURT + EXERCISE:RICE + EXERCISE:BEEF + 
+                               as.factor(DIABETES):SOUP +
+                               as.factor(DIABETES):VEGETABLES + 
+                               as.factor(DIABETES):FRUITS + 
+                               as.factor(DIABETES):WINE + PASTA:OIL + 
+                               PASTA:BREAD + RICE:SOUP + RICE:SPREAD + 
+                               RICE:SEAFOOD + RICE:VEGETABLES + RICE:FRUITS + 
+                               SOUP:VEGETABLES + SPREAD:CHICKEN + 
+                               SPREAD:SEAFOOD + OIL:TURKEY + POLENTA:RABBIT + 
+                               POLENTA:SEAFOOD + POLENTA:VEGETABLES + 
+                               CHEESE:WINE + PIZZA:RABBIT + ANIMAL:OTHER_MEAT + 
+                               ANIMAL:WINE + PORK:RABBIT + PORK:FISH + 
+                               CHICKEN:YOGURT + RABBIT:MILK + OTHER_MEAT:EGGS + 
+                               OTHER_MEAT:TEA + SEAFOOD:TEA + FISH:BREAD + 
+                               VEGETABLES:DESSERTS + EGGS:YOGURT + BEER:WINE), 
+         data = train)
+Anova_m2 <- Anova(m2)
+AIC(m2)
+# AIC = 34830.4
+BIC(m2)
+# BIC = 35498.54
+m3 <- update(m2, .~. - OIL:TURKEY - WAIST:DESSERTS - OTHER_MEAT:EGGS - 
+               as.factor(DIABETES):VEGETABLES - CHICKEN:YOGURT - 
+               SPREAD:CHICKEN - RICE:SEAFOOD - MILK:RABBIT - AGE:FRUITS - 
+               OTHER_MEAT:ANIMAL - OTHER_MEAT:TEA - POLENTA:RABBIT - 
+               SEAFOOD:TEA - PORK:FISH - VEGETABLES:SOUP - WAIST:ANIMAL - 
+               EGGS:YOGURT - PORK:RABBIT - PASTA:OIL - SEAFOOD:POLENTA - 
+               EXERCISE:BEEF - SPREAD:RICE - WALKING:RABBIT - HIP:TURKEY - 
+               WINE:ANIMAL - PIZZA:RABBIT - as.factor(CIGARETTES) - 
+               WAIST:PIZZA - CYCLING:YOGURT - RICE:SOUP)
+Anova_m3 <- Anova(m3)
+AIC(m3)
+# AIC = 34829.44
+BIC(m3)
+# BIC = 35295.12
+m4 <- update(m3, .~. - RICE:VEGETABLES - EGGS - RABBIT- TEA - OTHER_MEAT - OIL)
+Anova_m4 <- Anova(m4)
+AIC(m4)
+# AIC = 34824.55
+BIC(m4)
+# BIC = 35249.74
+summary(m4)
+# m4 contains all the relevant explanatory variables
+predict_lm <- predict(m4, test)
+# check the predictive power of this model (m4)
+DMwR::regr.eval(test$WEIGHT, predict_lm)
+
+
+par(mfrow = c(1,2))
+# normality check for the error terms
+plot(m4, which = c(2))
+# residuals vs fitted to assess the linearity assumption
+plot(m4, which = c(1))
+
+# check for constant variance
+ncvTest(m4)
+library(lmtest)
+bptest(m4)
+# very small p-value; reject Ho for constant variance
+# model exhibits heteroskedasticity
+
+# check for outliers for this model
+outlierTest(m4)
+# check from plot of each datapoint
+par(mfrow = c(2, 2))
+# 2616 and 3961 are both found in influencePlot, outlierTest and Cook's Distance
+plot(m4, col=ifelse(as.integer(rownames(train))==2616, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==3961, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==886, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==2551, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==2614, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==5405, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==5294, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==3633, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==4346, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==2614, "red", "black"), pch=20)
+plot(m4, col=ifelse(as.integer(rownames(train))==2635, "red", "black"), pch=20)
+par(mfrow = c(1, 1))
+# detecting outliers
+library(olsrr)
+# cook's distance plot, not very helpful as there are a lot of observations
+ols_plot_cooksd_bar(m4)
+# telling which observation from m4 model that are influential
+cooksd <- cooks.distance(m4)
+influential <- as.numeric(names(cooksd)[(cooksd > (4/nrow(train)))])
+# the data obervations that are found in both the outlierTest and those in 
+# influential vectors are outliers
+# outliers are these observations no 2616, 3961, 886, 2551, 2614, 2635, 3633, 
+# 4346, 5294, 5405, 1191, 141
+# check for collinearity
+require(VIF)
+# collinearity greater than 5
+vif <- car::vif(m4)
+# 61 explanatory variables in the final model
+vif_result <- c()
+for(i in 1 : length(vif)) {
+  if (vif[i] > 5) {
+    add <- vif[i]
+    vif_result <- c(vif_result, add)
+  }
+}
+# 33 variables with VIF > 5
+
+set.seed(100)
+library(glmnet)
+# fitting penalised regression
+# instead of manually computing interaction terms one by one, use the formula
+f <- as.formula(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                            as.factor(GENDER) + WALKING + CYCLING + 
+                            EXERCISE + as.factor(CIGARETTES) + 
+                            as.factor(DIABETES) + PASTA + RICE + SOUP + 
+                            SPREAD + OIL + POLENTA + CHEESE + PIZZA + BEEF +
+                            TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                            OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + 
+                            EGGS + SANDWICH + FRUITS + BREAD + BEER + WINE + 
+                            JUICES + MILK + COFFEE + TEA + YOGURT + 
+                            DESSERTS + 0) ^ 2)
+# add 0 so that only one intercept is given
+# training set for the independent variables in a matrix
+x_penalised_train <- model.matrix(f, train)
+# response for the training set
+y_penalised_train <- as.matrix(train$WEIGHT, ncol = 1)
+# testing set for the independent variables in a matrix
+x_penalised_test <- model.matrix(f, test)
+# response of the test set
+y_penalised_test <- as.matrix(test$WEIGHT, ncol = 1)
+# ridge regression, lambda given as a grid 
+ridge <- penalised(1, 1, x_penalised_train, y_penalised_train, x_penalised_test,
+                   y_penalised_test)
+# lasso regression, using lambda given as a grid
+lasso <- penalised(1, 2, x_penalised_train, y_penalised_train, x_penalised_test,
+                   y_penalised_test)
+# repeat the same process as the simulation of finding alpha but with a 
+# step value of 0.1
+elastic_net1 <- function(lambda, xtrain, ytrain, xtest, ytest) {
+  set.seed(100)
+  list <- list()
+  # try the value of alpha from 0 to 1 to fit an elastic net regression
+  for (i in 0:10) {
+    # indicate the value of alpha at every iteration  
+    name <- paste0("alpha", i / 10)
+    if (lambda == 1) {
+      # lambda given as a grid
+      # 10-fold cv for the elastic net model and store it in the list
+      list[[name]] <-
+        cv.glmnet(xtrain, ytrain, alpha = i / 10, lambda = lambdas)
+    } else if (lambda == 0) {
+      # no value of lambda given for modelling the elastic net
+      list[[name]] <-
+        cv.glmnet(xtrain, ytrain, alpha = i / 10)
+    }
+  }
+  results <- data.frame()
+  for (i in 0:10) {
+    # build the table to display results
+    name <- paste0("alpha", i / 10)
+    # use each model from the list to predict the test dataset
+    predict <- predict(list[[name]], s = list[[name]]$lambda.min, newx = xtest)
+    # calculate the MSE
+    mse <- mean((ytest - predict)^2)
+    # store the results and choose the alpha with the lowest mse
+    temp <- data.frame(alpha = i / 10, mse = mse, name = name)
+    results <- rbind(results, temp)
+  }
+  return(results)
+  # from the results, pick the value of alpha with the lowest MSE
+}
+# find optimal alpha when lambda given as a grid
+alpha_elastic_net <- elastic_net1(1, x_penalised_train, y_penalised_train,
+                                  x_penalised_test, y_penalised_test)
+# optimal alpha occurs 0.8 at with mse of 14.50933
+# perform another search for optimum alpha within 0.75 - 0.85, step size = 0.01
+elastic_net2 <- function(xtrain, ytrain, xtest, ytest) {
+  set.seed(100)
+  list <- list()
+  # try the value of alpha from 0 to 1 to fit an elastic net regression
+  for (i in 0:10) {
+    # indicate the value of alpha at every iteration  
+    name <- paste0("alpha", 0.75 + (i / 100))
+    # lambda given as a grid
+    # 10-fold cv for the elastic net model and store it in the list
+    list[[name]] <- cv.glmnet(xtrain, ytrain, alpha = 0.75 + (i / 100), 
+                              lambda = lambdas)
+  }
+  results <- data.frame()
+  for (i in 0:10) {
+    # build the table to display results
+    name <- paste0("alpha", 0.75 + (i / 100))
+    # use each model from the list to predict the test dataset
+    predict <- predict(list[[name]], s = list[[name]]$lambda.min, newx = xtest)
+    # calculate the MSE
+    mse <- mean((ytest - predict)^2)
+    # store the results and choose the alpha with the lowest mse
+    temp <- data.frame(alpha = 0.75 + (i / 100), mse = mse, name = name)
+    results <- rbind(results, temp)
+  }
+  return(results)
+  # from the results, pick the value of alpha with the lowest MSE
+}
+alpha_elastic_net_2 <- elastic_net2(x_penalised_train, y_penalised_train, 
+                                    x_penalised_test, y_penalised_test)
+# optimal alpha occurs at 0.84 with MSE of 14.52552
+# perform another search for optimum alpha within 0.835 - 0.845
+# step size = 0.001
+elastic_net3 <- function(xtrain, ytrain, xtest, ytest) {
+  set.seed(100)
+  list <- list()
+  # try the value of alpha from 0 to 1 to fit an elastic net regression
+  for (i in 0:10) {
+    # indicate the value of alpha at every iteration  
+    name <- paste0("alpha", 0.835 + (i / 1000))
+    # lambda given as a grid
+    # 10-fold cv for the elastic net model and store it in the list
+    list[[name]] <- cv.glmnet(xtrain, ytrain, alpha = 0.835 + (i / 1000), 
+                              lambda = lambdas)
+  }
+  results <- data.frame()
+  for (i in 0:10) {
+    # build the table to display results
+    name <- paste0("alpha", 0.835 + (i / 1000))
+    # use each model from the list to predict the test dataset
+    predict <- predict(list[[name]], s = list[[name]]$lambda.min, newx = xtest)
+    # calculate the MSE
+    mse <- mean((ytest - predict)^2)
+    # store the results and choose the alpha with the lowest mse
+    temp <- data.frame(alpha = 0.835 + (i / 1000), mse = mse, name = name)
+    results <- rbind(results, temp)
+  }
+  return(results)
+  # from the results, pick the value of alpha with the lowest MSE
+}  
+alpha_elastic_net_3 <- elastic_net3(x_penalised_train, y_penalised_train, 
+                                    x_penalised_test, y_penalised_test)
+# optimal alpha occurs at 0.844 with MSE of 14.525
+# perform elastic net regression
+elastic_net <- penalised(1, 3, x_penalised_train, y_penalised_train, 
+                         x_penalised_test, y_penalised_test, 0.844)
+# ridge regression, when no lambda given
+ridge_no_lambda <- penalised(0, 1, x_penalised_train, y_penalised_train, 
+                             x_penalised_test, y_penalised_test)
+# lasso regression, when no lambda given
+lasso_no_lambda <- penalised(0, 2, x_penalised_train, y_penalised_train, 
+                             x_penalised_test, y_penalised_test)
+# find optimum alpha when no lambda was given
+alpha_elastic_net_no_lambda <- elastic_net_1(0, x_penalised_train, 
+                                             y_penalised_train, 
+                                             x_penalised_test, y_penalised_test)
+# lowest alpha at 0.7 with MSE of 14.52484
+# repeat the same process to find optimal alpha within 0.65 to 0.75 with an 
+# increment of 0.01
+elastic_net_4 <- function(xtrain, ytrain, xtest, ytest) {
+  set.seed(10)
+  list <- list()
+  # try the value of alpha from 0 to 1 to fit an elastic net regression
+  for (i in 0:10) {
+    # indicate the value of alpha at every iteration  
+    name <- paste0("alpha", 0.65 + (i / 100))
+    # no value of lambda given for modelling the elastic net 
+    list[[name]] <- cv.glmnet(xtrain, ytrain, alpha = 0.65 + (i / 100))
+  }
+  results <- data.frame()
+  for (i in 0:10) {
+    # build the table to display results
+    name <- paste0("alpha", 0.65 + (i / 100))
+    # use each model from the list to predict the test dataset
+    predict <- predict(list[[name]], s = list[[name]]$lambda.min, newx = xtest)
+    # calculate the MSE
+    mse <- mean((ytest - predict)^2)
+    # store the results and choose the alpha with the lowest mse 
+    temp <- data.frame(alpha = 0.65 + (i / 100), mse = mse, name = name)
+    results <- rbind(results, temp)
+  }
+  return(results)
+  # from the results, pick the value of alpha with the lowest MSE
+}
+alpha_elastic_net_no_lambda1 <- elastic_net_4(x_penalised_train, 
+                                              y_penalised_train, 
+                                              x_penalised_test,
+                                              y_penalised_test)
+# optimum alpha occurs at 0.67 with MSE of 14.55030
+# repeat the same process to find optimal alpha within 0.665 to 0.675 with an 
+# increment of 0.001
+elastic_net_5 <- function(xtrain, ytrain, xtest, ytest) {
+  set.seed(10)
+  list <- list()
+  # try the value of alpha from 0 to 1 to fit an elastic net regression
+  for (i in 0:10) {
+    # build the table to display results
+    name <- paste0("alpha", 0.665 + (i / 1000))
+    # indicate the value of alpha at every iteration  
+    # no value of lambda given for modelling the elastic net 
+    list[[name]] <- cv.glmnet(xtrain, ytrain, alpha = 0.665 + (i / 1000))
+  }
+  results <- data.frame()
+  for (i in 0:10) {
+    # build the table to display results
+    name <- paste0("alpha", 0.665 + (i / 1000))
+    # use each model from the list to predict the test dataset
+    predict <- predict(list[[name]], s = list[[name]]$lambda.min, newx = xtest)
+    # calculate the MSE
+    mse <- mean((ytest - predict)^2)
+    # store the results and choose the alpha with the lowest mse 
+    temp <- data.frame(alpha = 0.665 + (i / 1000), mse = mse, name = name)
+    results <- rbind(results, temp)
+  }
+  return(results)
+  # from the results, pick the value of alpha with the lowest MSE
+}
+alpha_elastic_net_no_lambda2 <- elastic_net_5(x_penalised_train,
+                                              y_penalised_train, 
+                                              x_penalised_test, 
+                                              y_penalised_test)
+# optimum alpha occurs at 0.666 with MSE of 14.52364 
+elastic_net_no_lambda <- penalised(0, 3, x_penalised_train, y_penalised_train, 
+                                   x_penalised_test,
+                                   y_penalised_test, 0.666) 
+# try diferent values of lambdas and reperform the ridge regression 
+lambdas <- 10^seq(-5, -20, by = -0.1)
+ridge_lambda1 <- penalised(1, 1, x_penalised_train, y_penalised_train, 
+                           x_penalised_test, y_penalised_test)
+# the prediction error of the ridge regression actually inflated
+lambdas <- 10^seq(10, -3, by = -0.1)
+ridge_lambda2 <- penalised(1, 1, x_penalised_train, y_penalised_train, 
+                           x_penalised_test, y_penalised_test)
+# the lowest test error given when no value of lambda specified for the cv
+# build a regression tree 
+require(tree)
+# interactions between the variables have been involved in building the trees
+# we do not include interaction terms
+tree_model <- tree(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                               as.factor(GENDER) + WALKING + CYCLING + 
+                               EXERCISE + as.factor(CIGARETTES) + 
+                               as.factor(DIABETES) + PASTA + RICE + SOUP + 
+                               SPREAD + OIL + POLENTA + CHEESE + PIZZA + BEEF +
+                               TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                               OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + 
+                               EGGS + SANDWICH + FRUITS + BREAD + BEER + WINE + 
+                               JUICES + MILK + COFFEE + TEA + YOGURT + 
+                               DESSERTS), data = train)
+
+summary(tree_model)
+# three variables (waist, hip and height) used in the tree with 9 terminal nodes
+# plot the tree
+plot(tree_model)
+text(tree_model, pretty = 0)
+title(main = "Regression Tree for Weight")
+# prune the trees using a cross-validation
+cv_tree_model <- cv.tree(tree_model)
+plot(cv_tree_model$size , cv_tree_model$dev ,type = 'b')
+# the lowest deviance at 12 nodes, so used the original tree, no need to prune
+predict_tree <- predict(tree_model, newdata = test)
+# prediction error
+error_tree <- error_metric(predict_tree, test$WEIGHT)
+
+# perform bagging and random forests on our real data to predict the weight
+set.seed(100)
+library(randomForest)
+# bagging and random forest
+bagging <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
+                          WALKING + CYCLING + EXERCISE + CIGARETTES + DIABETES +
+                          PASTA + RICE + SOUP + SPREAD + OIL + POLENTA + 
+                          CHEESE + PIZZA + BEEF + TURKEY + ANIMAL + PORK + 
+                          CHICKEN + RABBIT + OTHER_MEAT + SEAFOOD + FISH + 
+                          VEGETABLES + EGGS + SANDWICH + FRUITS + BREAD + BEER + 
+                          WINE + JUICES + MILK + COFFEE + TEA + YOGURT + 
+                          DESSERTS, data = train, mtry = 41, importance = TRUE)
+predict_bagging <- predict(bagging, test)
+error_bagging <- error_metric(predict_bagging, test$WEIGHT)
+varImpPlot(bagging)
+# waist, height and hip are the important predictors of weight 
+# perform random forest
+forest <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
+                         WALKING + CYCLING + EXERCISE + CIGARETTES + DIABETES +
+                         PASTA + RICE + SOUP + SPREAD + OIL + POLENTA + 
+                         CHEESE + PIZZA + BEEF + TURKEY + ANIMAL + PORK + 
+                         CHICKEN + RABBIT + OTHER_MEAT + SEAFOOD + FISH + 
+                         VEGETABLES + EGGS + SANDWICH + FRUITS + BREAD + BEER + 
+                         WINE + JUICES + MILK + COFFEE + TEA + YOGURT + 
+                         DESSERTS, data = train, importance = TRUE)
+predict_forest <- predict(forest, test)
+error_forest <- error_metric(predict_forest, test$WEIGHT)
+
+# SVR
+require(e1071)
+svr <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                       as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
+                       as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
+                       RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
+                       BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                       OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
+                       SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + MILK +
+                       COFFEE + TEA + YOGURT + DESSERTS) ^ 2, data = train)
+# predict the test data using our initial svr model
+predict_svr <- predict(svr, test)
+# compute the error rate
+error_svr <- error_metric(predict_svr, test$WEIGHT)
+# tune the model for optimal level of epsilon and cost parameter
+svr_tune <- tune(svm, WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + 
+                                  as.factor(RETIRED) + as.factor(GENDER) + 
+                                  WALKING + CYCLING + EXERCISE + 
+                                  as.factor(CIGARETTES) + as.factor(DIABETES) + 
+                                  PASTA + RICE + SOUP + SPREAD + OIL + POLENTA +
+                                  CHEESE + PIZZA + BEEF + TURKEY + ANIMAL + 
+                                  PORK + CHICKEN + RABBIT + OTHER_MEAT + 
+                                  SEAFOOD + FISH + VEGETABLES + EGGS + 
+                                  SANDWICH + FRUITS + BREAD + BEER + WINE + 
+                                  JUICES + MILK + COFFEE + TEA + YOGURT + 
+                                  DESSERTS) ^ 2, data = train, 
+                 ranges = list(epsilon = seq(0, 0.2, 0.1), 
+                               cost = 2^(seq(2, 4, 1))))
+# predict the test dataset using the best model from the tuned svr
+predict_svr_tuned <- predict(svr_tune$best.model, test)
+error_svr_tuned <- error_metric(predict_svr_tuned, test$WEIGHT)
+# retune the model for better prediction 
+svr_tune1 <- tune(svm, WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + 
+                                   as.factor(RETIRED) + as.factor(GENDER) + 
+                                   WALKING + CYCLING + EXERCISE + 
+                                   as.factor(CIGARETTES) + as.factor(DIABETES) + 
+                                   PASTA + RICE + SOUP + SPREAD + OIL + 
+                                   POLENTA + CHEESE + PIZZA + BEEF + TURKEY +
+                                   ANIMAL + PORK + CHICKEN + RABBIT + 
+                                   OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + 
+                                   EGGS + SANDWICH + FRUITS + BREAD + BEER + 
+                                   WINE + JUICES + MILK + COFFEE + TEA + 
+                                   YOGURT + DESSERTS) ^ 2, data = train, 
+                  ranges = list(epsilon = seq(0, 0.1, 0.01), 
+                                cost = 2^(seq(0, 1, 1))))
+# performing the tuning of the hyperparameter required a long time, try 
+# obtaining the epsilon and cost that gave the lowest prediction error manually
+svr1 <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                        as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
+                        as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
+                        RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
+                        BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                        OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
+                        SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + 
+                        MILK + COFFEE + TEA + YOGURT + DESSERTS) ^ 2, 
+            data = train, epsilon = 0.01, cost = 8)
+predict_svr1 <- predict(svr1, test)
+error_svr1 <- error_metric(predict_svr1, test$WEIGHT)
+# error of the original model was lower, try with another value of epsilon and 
+# cost parameter
+svr2 <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                        as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
+                        as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
+                        RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
+                        BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                        OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
+                        SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + 
+                        MILK + COFFEE + TEA + YOGURT + DESSERTS) ^ 2, 
+            data = train, type = "eps-regression", kernel = "radial", 
+            epsilon = 0.1, cost = 1, gamma = 0.0005)
+predict_svr2 <- predict(svr2, test)
+error_svr2 <- error_metric(predict_svr2, test$WEIGHT)
+# the error is smaller, try changing again the value of the cost parameter
+svr3 <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                        as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
+                        as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
+                        RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
+                        BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
+                        OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
+                        SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + 
+                        MILK + COFFEE + TEA + YOGURT + DESSERTS) ^ 2, 
+            data = train, type = "eps-regression", kernel = "radial", 
+            epsilon = 0.01, cost = 8, gamma = 0.00005)
+predict_svr3 <- predict(svr3, test)
+error_svr3 <- error_metric(predict_svr3, test$WEIGHT)
+# the prediction error is smaller
