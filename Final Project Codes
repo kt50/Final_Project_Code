@@ -1341,9 +1341,9 @@ library(dplyr)
 dat <- x %>% select(WEIGHT, HEIGHT, WAIST, HIP, AGE, RETIRED, GENDER, DIABETES,
                     CIGARETTES, WALKING, CYCLING, EXERCISE, PASTA, RICE, SOUP, 
                     SPREAD, OIL, POLENTA, CHEESE, PIZZA, BEEF, ANIMAL, PORK, 
-                    CHICKEN, RABBIT, OTHER_MEAT, SEAFOOD, FISH, VEGETABLES, EGGS, 
-                    SANDWICH, FRUITS, BREAD, BEER, WINE, JUICES, MILK, COFFEE, 
-                    TEA, YOGURT, TURKEY, DESSERTS)
+                    CHICKEN, RABBIT, OTHER_MEAT, SEAFOOD, FISH, VEGETABLES, 
+                    EGGS, SANDWICH, FRUITS, BREAD, BEER, WINE, JUICES, MILK, 
+                    COFFEE, TEA, YOGURT, TURKEY, DESSERTS)
 
 plot_relationship <- function(x){
   par(mfrow = c(3,3))
@@ -1569,7 +1569,6 @@ bptest(m4)
 outlierTest(m4)
 # check from plot of each datapoint
 par(mfrow = c(2, 2))
-# 2616 and 3961 are both found in influencePlot, outlierTest and Cook's Distance
 plot(m4, col=ifelse(as.integer(rownames(train))==2616, "red", "black"), pch=20)
 plot(m4, col=ifelse(as.integer(rownames(train))==3961, "red", "black"), pch=20)
 plot(m4, col=ifelse(as.integer(rownames(train))==886, "red", "black"), pch=20)
@@ -1830,6 +1829,7 @@ ridge_lambda2 <- penalised(1, 1, x_penalised_train, y_penalised_train,
                            x_penalised_test, y_penalised_test)
 # the lowest test error given when no value of lambda specified for the cv
 # build a regression tree 
+set.seed(100)
 require(tree)
 # interactions between the variables have been involved in building the trees
 # we do not include interaction terms
@@ -1852,17 +1852,22 @@ text(tree_model, pretty = 0)
 title(main = "Regression Tree for Weight")
 # prune the trees using a cross-validation
 cv_tree_model <- cv.tree(tree_model)
-plot(cv_tree_model$size , cv_tree_model$dev ,type = 'b')
+plot(cv_tree_model$size , cv_tree_model$dev ,type = 'b', 
+     main = "Cross-Validation of Regression Tree to Predict Weight", 
+     xlab = "Size", ylab ="Deviance")
 # the lowest deviance at 12 nodes, so used the original tree, no need to prune
 predict_tree <- predict(tree_model, newdata = test)
 # prediction error
 error_tree <- error_metric(predict_tree, test$WEIGHT)
 
+# using the rpart plot
+
+
 # perform bagging and random forests on our real data to predict the weight
 set.seed(100)
 library(randomForest)
 # bagging and random forest
-bagging <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
+bagged_model <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
                           WALKING + CYCLING + EXERCISE + CIGARETTES + DIABETES +
                           PASTA + RICE + SOUP + SPREAD + OIL + POLENTA + 
                           CHEESE + PIZZA + BEEF + TURKEY + ANIMAL + PORK + 
@@ -1870,12 +1875,13 @@ bagging <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
                           VEGETABLES + EGGS + SANDWICH + FRUITS + BREAD + BEER + 
                           WINE + JUICES + MILK + COFFEE + TEA + YOGURT + 
                           DESSERTS, data = train, mtry = 41, importance = TRUE)
-predict_bagging <- predict(bagging, test)
+predict_bagging <- predict(bagged_model, test)
 error_bagging <- error_metric(predict_bagging, test$WEIGHT)
-varImpPlot(bagging)
+varImpPlot(bagged_model)
 # waist, height and hip are the important predictors of weight 
 # perform random forest
-forest <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
+set.seed(100)
+random_forest <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
                          WALKING + CYCLING + EXERCISE + CIGARETTES + DIABETES +
                          PASTA + RICE + SOUP + SPREAD + OIL + POLENTA + 
                          CHEESE + PIZZA + BEEF + TURKEY + ANIMAL + PORK + 
@@ -1883,9 +1889,10 @@ forest <- randomForest(WEIGHT ~ HEIGHT + WAIST + HIP + AGE + RETIRED + GENDER +
                          VEGETABLES + EGGS + SANDWICH + FRUITS + BREAD + BEER + 
                          WINE + JUICES + MILK + COFFEE + TEA + YOGURT + 
                          DESSERTS, data = train, importance = TRUE)
-predict_forest <- predict(forest, test)
+predict_forest <- predict(random_forest, test)
 error_forest <- error_metric(predict_forest, test$WEIGHT)
-
+varImpPlot(random_forest)
+title(main = "random forest")
 # SVR
 require(e1071)
 svr <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
@@ -1933,42 +1940,39 @@ svr_tune1 <- tune(svm, WEIGHT ~ (HEIGHT + WAIST + HIP + AGE +
                                 cost = 2^(seq(0, 1, 1))))
 # performing the tuning of the hyperparameter required a long time, try 
 # obtaining the epsilon and cost that gave the lowest prediction error manually
-svr1 <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
-                        as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
-                        as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
-                        RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
-                        BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
-                        OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
-                        SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + 
-                        MILK + COFFEE + TEA + YOGURT + DESSERTS) ^ 2, 
-            data = train, epsilon = 0.01, cost = 8)
-predict_svr1 <- predict(svr1, test)
-error_svr1 <- error_metric(predict_svr1, test$WEIGHT)
-# error of the original model was lower, try with another value of epsilon and 
-# cost parameter
-svr2 <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
-                        as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
-                        as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
-                        RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
-                        BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
-                        OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
-                        SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + 
-                        MILK + COFFEE + TEA + YOGURT + DESSERTS) ^ 2, 
-            data = train, type = "eps-regression", kernel = "radial", 
-            epsilon = 0.1, cost = 1, gamma = 0.0005)
-predict_svr2 <- predict(svr2, test)
-error_svr2 <- error_metric(predict_svr2, test$WEIGHT)
-# the error is smaller, try changing again the value of the cost parameter
-svr3 <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
-                        as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
-                        as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
-                        RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + PIZZA + 
-                        BEEF + TURKEY + ANIMAL + PORK + CHICKEN + RABBIT + 
-                        OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + EGGS + 
-                        SANDWICH + FRUITS + BREAD + BEER + WINE + JUICES + 
-                        MILK + COFFEE + TEA + YOGURT + DESSERTS) ^ 2, 
-            data = train, type = "eps-regression", kernel = "radial", 
-            epsilon = 0.01, cost = 8, gamma = 0.00005)
-predict_svr3 <- predict(svr3, test)
-error_svr3 <- error_metric(predict_svr3, test$WEIGHT)
-# the prediction error is smaller
+
+# a function that inputs the values of epsilon, cost parameter and gamma 
+# to model a SVR and outputs the prediction error
+manual_svr <- function(eps, c, gamma) {
+  set.seed(100)
+  # model the SVR with given values of eps, c and gamma
+  model <- svm(WEIGHT ~ (HEIGHT + WAIST + HIP + AGE + as.factor(RETIRED) + 
+                           as.factor(GENDER) + WALKING + CYCLING + EXERCISE + 
+                           as.factor(CIGARETTES) + as.factor(DIABETES) + PASTA + 
+                           RICE + SOUP + SPREAD + OIL + POLENTA + CHEESE + 
+                           PIZZA + BEEF + TURKEY + ANIMAL + PORK + CHICKEN + 
+                           RABBIT + OTHER_MEAT + SEAFOOD + FISH + VEGETABLES + 
+                           EGGS + SANDWICH + FRUITS + BREAD + BEER + WINE + 
+                           JUICES + MILK + COFFEE + TEA + YOGURT + 
+                           DESSERTS) ^ 2, data = train, epsilon = eps, cost = c,
+               gamma = gamma, type = "eps-regression", kernel = "radial")
+  predict_model <- predict(model, test)
+  error <- error_metric(predict_model, test$WEIGHT)
+  return(list(error, model))
+}
+# try different values of eps, C and gamma
+svr1 <- manual_svr(0.1, 1, 0.0005)
+svr2 <- manual_svr(0.1, 1, 0.00005)
+svr3 <- manual_svr(0.1, 2, 0.005)
+svr4 <- manual_svr(0.1, 2, 0.0005)
+svr5 <- manual_svr(0.1, 2, 0.00005)
+svr6 <- manual_svr(0.1, 4, 0.0005)
+svr7 <- manual_svr(0.1, 4, 0.00005)
+svr8 <- manual_svr(0.1, 8, 0.0005)
+svr9 <- manual_svr(0.1, 8, 0.00005)
+svr10 <- manual_svr(0.1, 8, 0.00001)
+svr11 <- manual_svr(0.1, 16, 0.00005)
+svr12 <- manual_svr(0.1, 16, 0.00001)
+svr13 <- manual_svr(0.1, 32, 0.00001)
+svr14 <- manual_svr(0.1, 64, 0.00001)
+# the svr13 was the best model
